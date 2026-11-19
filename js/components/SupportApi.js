@@ -108,12 +108,23 @@ window.gmkSupportFormat = {
 #gmk-app .gmk-faq-preview li, #gmk-app .gmk-faq-answer li { margin-bottom: 4px; }
 #gmk-app .gmk-faq-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border: 1px dashed rgba(0,0,0,0.2); border-radius: 8px; padding: 8px; }
 #gmk-app .gmk-faq-link__kind { flex: 1 1 120px; }
+#gmk-app .gmk-ai-actions { display: flex; flex-direction: column; gap: 8px; }
+#gmk-app .gmk-ai-actions .v-btn { width: 100%; min-height: 44px; }
+#gmk-app .gmk-ai-toggle { display: flex; width: 100%; }
+#gmk-app .gmk-ai-toggle .v-btn { flex: 1 1 0; min-height: 44px; text-transform: none; letter-spacing: normal; padding: 0 4px !important; min-width: 0 !important; font-size: 12px; }
+#gmk-app .gmk-ai-example { border-left: 3px solid rgba(0,0,0,0.15); padding-left: 8px; }
+#gmk-app .gmk-ai-weeks { display: inline-flex; align-items: flex-end; gap: 2px; height: 28px; }
+#gmk-app .gmk-ai-week { width: 6px; background: #1976d2; border-radius: 2px 2px 0 0; opacity: 0.8; }
+#gmk-app .gmk-ai-token input { font-family: monospace; font-size: 14px !important; }
 #gmk-app .gmk-faq-link__label, #gmk-app .gmk-faq-link__url { flex: 1 1 100%; }
 #gmk-app .gmk-faq-option { text-transform: none !important; letter-spacing: normal !important; width: 100%; text-align: left; justify-content: flex-start; white-space: normal; height: auto !important; min-height: 52px; padding: 10px 12px !important; }
 #gmk-app .gmk-faq-option .v-btn__content { white-space: normal; text-align: left; flex: 1 1 auto; }
 
 @media (min-width: 600px) {
   #gmk-app .gmk-faq-link__kind { flex: 0 0 140px; }
+  #gmk-app .gmk-ai-actions { flex-direction: row; flex-wrap: wrap; }
+  #gmk-app .gmk-ai-actions .v-btn { width: auto; }
+  #gmk-app .gmk-ai-toggle { width: auto; display: inline-flex; }
   #gmk-app .gmk-faq-link__label { flex: 1 1 200px; }
   #gmk-app .gmk-faq-link__url { flex: 2 1 260px; }
   #gmk-app .gmk-stack table { display: table; width: 100%; }

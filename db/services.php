@@ -2349,6 +2349,22 @@ $functions = array(
         'capabilities'  => '',
         'ajax'        => true,
     ),
+    'local_grupomakro_support_ai_get' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_get',
+        'methodname'  => 'execute',
+        'description' => 'Sugerencias, tipificaciones e historial del asistente semanal de la mesa de ayuda.',
+        'type'        => 'read',
+        'capabilities'  => 'local/grupomakro_core:support_assistant',
+        'ajax'        => true,
+    ),
+    'local_grupomakro_support_ai_action' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_action',
+        'methodname'  => 'execute',
+        'description' => 'Anade (con o sin edicion), descarta o recupera una sugerencia del asistente semanal.',
+        'type'        => 'write',
+        'capabilities'  => 'local/grupomakro_core:support_assistant',
+        'ajax'        => true,
+    ),
     'local_grupomakro_support_search_users' => array(
         'classname'   => 'local_grupomakro_core\external\support\search_users',
         'methodname'  => 'execute',
@@ -2391,5 +2407,45 @@ $functions = array(
         'capabilities'  => '',
         'ajax'        => true,
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'local_grupomakro_support_ai_token' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_token',
+        'methodname'  => 'execute',
+        'description' => 'Genera (muestra una sola vez) o revoca el token del agente en la nube de la mesa de ayuda.',
+        'type'        => 'write',
+        'capabilities'  => 'local/grupomakro_core:support_assistant',
+        'ajax'        => true,
+    ),
+    // 20261001126: endpoints del agente semanal en la nube (rutina de Claude
+    // Code). Solo por el servicio gmk_support_ai con el token de su usuario
+    // dedicado; no estan en el servicio movil ni son ajax.
+    'local_grupomakro_support_ai_export_closed' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_export_closed',
+        'methodname'  => 'execute',
+        'description' => 'Tickets resueltos/cerrados aun no analizados, anonimizados en el servidor, sin notas internas ni Psicologia.',
+        'type'        => 'read',
+        'capabilities'  => 'local/grupomakro_core:support_ai_agent',
+        'ajax'        => false,
+    ),
+    'local_grupomakro_support_ai_submit' => array(
+        'classname'   => 'local_grupomakro_core\external\support\ai_submit',
+        'methodname'  => 'execute',
+        'description' => 'Recibe la ejecucion semanal (tipificaciones y sugerencias), la valida y la guarda; dryrun=1 solo valida.',
+        'type'        => 'write',
+        'capabilities'  => 'local/grupomakro_core:support_ai_agent',
+        'ajax'        => false,
+    ),
+);
+
+// 20261001126: servicio del agente en la nube. Usuarios restringidos: solo el
+// usuario dedicado (lo agrega "Generar token" en la configuracion).
+$services = array(
+    'Mesa de ayuda: asistente en la nube' => array(
+        'shortname' => 'gmk_support_ai',
+        'functions' => array('local_grupomakro_support_ai_export_closed', 'local_grupomakro_support_ai_submit'),
+        'restrictedusers' => 1,
+        'enabled' => 1,
+        'downloadfiles' => 0,
+        'uploadfiles' => 0,
     ),
 );

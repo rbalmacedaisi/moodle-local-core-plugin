@@ -39,7 +39,10 @@ $PAGE->set_pagelayout('admin');
 require_capability('local/grupomakro_core:support_manage', $context);
 
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
-$config = json_encode(['deskurl' => (new moodle_url('/local/grupomakro_core/pages/support_desk.php'))->out(false)],
+$config = json_encode(['deskurl' => (new moodle_url('/local/grupomakro_core/pages/support_desk.php'))->out(false),
+    // 20261001126: pestana "Asistente en la nube" (sugerencias y conexion del agente semanal).
+    'assistant' => has_capability('local/grupomakro_core:support_assistant', $context)
+        && \local_grupomakro_core\local\support\assistant::enabled()],
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 
 echo $OUTPUT->header();
@@ -67,6 +70,7 @@ echo <<<EOT
 EOT;
 
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/SupportApi.js?v=' . $assetversion));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/SupportAssistant.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/SupportSettings.js?v=' . $assetversion));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 

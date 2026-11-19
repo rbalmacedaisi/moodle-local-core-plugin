@@ -4829,6 +4829,92 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001125, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001126) {
+        // Asistente semanal de la mesa de ayuda: ejecuciones, tipificaciones y
+        // sugerencias (problemas comunes nuevos, mejoras y respuestas rapidas)
+        // que envia el agente semanal en la nube (rutina de Claude Code) por el
+        // servicio gmk_support_ai (WS support_ai_export_closed / submit). Capacidades
+        // support_ai_agent (solo el usuario tecnico del agente) y
+        // support_assistant (mismos roles que support_manage).
+        $t = new xmldb_table('gmk_tkt_ai_run');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('runkey', XMLDB_TYPE_CHAR, '64', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('model', XMLDB_TYPE_CHAR, '80', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('periodfrom', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('periodto', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('tickets', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('classified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('suggestions', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('skipped', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('tokensin', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('tokensout', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('costusd', XMLDB_TYPE_NUMBER, '12, 4', null, null, null, null);
+        $t->add_field('summary', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('report', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('status', XMLDB_TYPE_CHAR, '15', null, XMLDB_NOTNULL, null, 'ok');
+        $t->add_field('importedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktairun_key', XMLDB_INDEX_UNIQUE, ['runkey']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        $t = new xmldb_table('gmk_tkt_ai_class');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('runid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('ticketid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('areaid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('problemtype', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('problemlabel', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('resolutiontype', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('resolutionlabel', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('resolved', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '2');
+        $t->add_field('rating', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('ratingsolved', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('faqid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timeclosed', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktaicls_ticket', XMLDB_INDEX_UNIQUE, ['ticketid']);
+        $t->add_index('idx_tktaicls_area', XMLDB_INDEX_NOTUNIQUE, ['areaid', 'problemtype']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        $t = new xmldb_table('gmk_tkt_ai_sugg');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('runid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('kind', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('areaid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('faqid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('problemtype', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('title', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('body', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('links', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('audience', XMLDB_TYPE_CHAR, '10', null, XMLDB_NOTNULL, null, 'all');
+        $t->add_field('rationale', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('ticketids', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('evidence', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('examples', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('stats', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('status', XMLDB_TYPE_CHAR, '15', null, XMLDB_NOTNULL, null, 'pending');
+        $t->add_field('resultid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('resolvedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timeresolved', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('idx_tktaisug_status', XMLDB_INDEX_NOTUNIQUE, ['status', 'areaid']);
+        $t->add_index('idx_tktaisug_key', XMLDB_INDEX_NOTUNIQUE, ['kind', 'areaid', 'problemtype']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        require_once(__DIR__ . '/upgradelib.php');
+        update_capabilities('local_grupomakro_core');
+        assign_capabilities_to_internal_roles();
+        upgrade_plugin_savepoint(true, 20261001126, 'local', 'grupomakro_core');
+    }
+
     return true;
 }
-
