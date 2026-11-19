@@ -272,7 +272,8 @@ try {
         && $f->audience === 'student', $f ? $f->problem : '-');
     $check('auditoría: config_faq y ai_suggestion_add', $DB->record_exists_select('gmk_tkt_event',
         "eventtype = 'config_faq' AND actorid = ? AND ticketid = 0", [$adminid])
-        && $DB->record_exists('gmk_tkt_event', ['eventtype' => 'ai_suggestion_add', 'newvalue' => (string)$s->id]));
+        && $DB->record_exists_select('gmk_tkt_event', 'eventtype = :t AND ' . $DB->sql_compare_text('newvalue', 20) . ' = :v',
+            ['t' => 'ai_suggestion_add', 'v' => (string)$s->id]));
     $s = $DB->get_record('gmk_tkt_ai_sugg', ['id' => $s->id]);
     $check('la sugerencia queda añadida con el id del problema', $s->status === 'added' && (int)$s->resultid === $newfaq);
     $check('no se puede añadir dos veces', $throws(function() use ($s, $adminid) {
