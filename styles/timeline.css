@@ -2726,3 +2726,10 @@ button.tl-btn.tl-btn-primary:active:not(:disabled) {
 .tl-proj-enrtable th { text-align: left; font-size: 11px; text-transform: uppercase; color: #64748B; padding: 6px; border-bottom: 1px solid #E2E8F0; }
 .tl-proj-enrtable td { padding: 6px; border-bottom: 1px solid #F1F5F9; vertical-align: top; }
 .tl-proj-enr-done { background: #F8FAFC; }
+
+/* Tablero: listado de estudiantes de un grupo con estado academico y financiero */
+.tl-sb-stpill { display: inline-block; border: 1px solid; border-radius: 10px; padding: 0 7px; font-size: 11px; font-weight: 600; line-height: 18px; white-space: nowrap; cursor: default; }
+button.tl-sb-stpill { cursor: pointer; }
+.tl-sb-stutable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tl-sb-stutable th { text-align: left; color: #475569; font-weight: 600; border-bottom: 1px solid #E2E8F0; padding: 4px 6px; position: sticky; top: 0; background: #fff; }
+.tl-sb-stutable td { border-bottom: 1px solid #F1F5F9; padding: 4px 6px; vertical-align: top; }

@@ -302,7 +302,9 @@ Vue.component('schedule-board', {
                                 <template v-if="!info.g.size"> · sin estudiantes: se publica con su horario y se matriculan después</template>
                                 <button v-if="canEdit && !info.g.published" class="tl-proj-flexbtn" style="margin-left:6px" @click="removeExtra(info.g)">Quitar del tablero</button></div>
                             <div class="tl-cfg-help">Grupo {{ info.g.number }} de {{ info.g.of }} · {{ info.g.jornada }} · {{ info.g.size }} estudiantes
-                                <template v-if="info.g.adelantos"> ({{ info.g.adelantos }} adelantos)</template></div>
+                                <template v-if="info.g.adelantos"> ({{ info.g.adelantos }} adelantos)</template>
+                                <button v-if="info.g.size" class="tl-proj-flexbtn" style="margin-left:4px" @click="openStudents(info.g.name + ' · grupo ' + info.g.number, info.g.userids)">ver estudiantes</button></div>
+                            <div v-if="info.g.size && stuAlerts(info.g.userids)" class="tl-cfg-help" style="color:#B45309">{{ stuAlerts(info.g.userids) }}</div>
                             <div class="tl-cfg-help">{{ topLevels(info.g) }}</div>
                         </div>
                         <button class="tl-proj-unx" style="color:#64748B;font-size:18px" @click="sel = null" title="Cerrar">×</button>
@@ -427,12 +429,50 @@ Vue.component('schedule-board', {
                         <div class="tl-cfg-help">Clase ya creada{{ fixedSel.samePeriod ? ' en este periodo' : ' de otro periodo que sigue corriendo' }}: no se mueve desde aquí,
                             pero sus estudiantes, docente y aula cuentan para los choques.</div>
                         <div class="mt-2">{{ dayName(fixedSel.day) }} {{ hhmm(fixedSel.start) }}–{{ hhmm(fixedSel.end) }} · {{ fixedSel.line2 }}</div>
-                        <div class="tl-cfg-help">Del {{ fmt(fixedSel.from) }} al {{ fmt(fixedSel.to) }} · {{ fixedSel.size }} estudiantes</div>
+                        <div class="tl-cfg-help">Del {{ fmt(fixedSel.from) }} al {{ fmt(fixedSel.to) }} · {{ fixedSel.size }} estudiantes
+                            <button v-if="fixedSel.size" class="tl-proj-flexbtn" style="margin-left:4px" @click="openStudents(fixedSel.name, fixedSel.userids)">ver estudiantes</button></div>
+                        <div v-if="fixedSel.size && stuAlerts(fixedSel.userids)" class="tl-cfg-help" style="color:#B45309">{{ stuAlerts(fixedSel.userids) }}</div>
                     </v-card-text>
                     <v-card-actions><v-spacer></v-spacer><v-btn text @click="fixedSel = null">Cerrar</v-btn></v-card-actions>
                 </v-card>
             </v-dialog>
 
+            <!-- estudiantes de un grupo: estado academico y financiero (solo lectura) -->
+            <v-dialog v-model="stu.show" max-width="980" scrollable>
+                <v-card>
+                    <v-card-title class="text-subtitle-1 font-weight-bold">Estudiantes · {{ stu.title }}</v-card-title>
+                    <v-card-text style="max-height:70vh">
+                        <div class="tl-cfg-help mb-2">{{ stu.ids.length }} estudiante(s). Estado académico: estado del estudiante en cada carrera.
+                            Estado financiero: el último sincronizado desde Odoo<template v-if="stuFinOld"> (hay datos de más de 7 días)</template>.</div>
+                        <div class="d-flex flex-wrap align-center mb-2" style="gap:6px">
+                            <input class="tl-cfg-input" style="width:220px" v-model="stu.q" placeholder="Buscar nombre o documento">
+                            <button class="tl-proj-flexbtn" :style="stu.f === '' ? 'font-weight:700' : ''" @click="stu.f = ''">Todos ({{ stuRows.length }})</button>
+                            <button v-for="c in stuCounts" :key="c.key" class="tl-sb-stpill" :style="pillStyle(c.color) + (stu.f === c.key ? ';outline:2px solid ' + c.color : '')"
+                                    @click="stu.f = stu.f === c.key ? '' : c.key">{{ c.label }} ({{ c.n }})</button>
+                        </div>
+                        <table class="tl-sb-stutable">
+                            <thead><tr><th>#</th><th>Estudiante</th><th>Documento</th><th>Estado académico</th><th>Estado financiero</th></tr></thead>
+                            <tbody>
+                                <tr v-for="(r, i) in stuShown" :key="r.uid">
+                                    <td>{{ i + 1 }}</td>
+                                    <td>{{ r.name }}</td>
+                                    <td>{{ r.doc }}</td>
+                                    <td>
+                                        <div v-if="!r.acad.length"><span class="tl-sb-stpill" :style="pillStyle('#64748B')">Sin carrera</span></div>
+                                        <div v-for="(a, j) in r.acad" :key="j" style="margin:1px 0">
+                                            <span class="tl-sb-stpill" :style="pillStyle(acadColor(a.status))">{{ acadLabel(a.status) }}</span>
+                                            <span class="tl-cfg-help">{{ a.plan }}</span></div>
+                                    </td>
+                                    <td><span class="tl-sb-stpill" :style="pillStyle(finColor(r.fin))">{{ finLabel(r.fin) }}</span>
+                                        <span v-if="r.fin_at" class="tl-cfg-help"> {{ fmt(r.fin_at) }}</span></td>
+                                </tr>
+                                <tr v-if="!stuShown.length"><td colspan="5" class="tl-cfg-help">Nadie con ese filtro.</td></tr>
+                            </tbody>
+                        </table>
+                    </v-card-text>
+                    <v-card-actions><v-spacer></v-spacer><v-btn text @click="stu.show = false">Cerrar</v-btn></v-card-actions>
+                </v-card>
+            </v-dialog>
             <!-- guardar -->
             <v-dialog v-model="apl.show" max-width="980" scrollable :persistent="apl.busy">
                 <v-card>
@@ -721,6 +761,7 @@ Vue.component('schedule-board', {
     },
     data() {
         return { loading: false, error: '', board: null, tick: 0, jornada: 'Diurna', q: '', tq: '', onlyIssues: false, sel: null, fixedSel: null,
+            stu: { show: false, title: '', ids: [], q: '', f: '' },
             hover: null, failedOpen: false, dirty: false, weekSel: 0, dispOpen: false, dispSel: '',
             scen: { on: false, id: '', name: '', effective: '', saved_at: 0, list: [] },
             apl: { show: false, loading: false, error: '', plan: null, note: '', confirm: false, busy: false, result: null },
@@ -748,6 +789,34 @@ Vue.component('schedule-board', {
     },
     beforeDestroy() { window.removeEventListener('beforeunload', this._unload); },
     computed: {
+        // Listado de estudiantes de un grupo con su estado academico y financiero.
+        stuRows() {
+            const st = (this.board && this.board.student_status) || {}, names = (this.board && this.board.students) || {};
+            return this.stu.ids.map(u => {
+                const x = st[u] || {};
+                const acad = x.acad || [];
+                const main = acad.some(a => a.status === 'activo') ? 'activo' : (acad[0] ? acad[0].status : 'sin_carrera');
+                return { uid: u, name: x.name || names[u] || ('Estudiante ' + u), doc: x.doc || '', acad, main, fin: x.fin || '', fin_at: x.fin_at || 0 };
+            }).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+        },
+        stuCounts() {
+            const c = {};
+            const add = (key, label, color) => { c[key] = c[key] || { key, label, color, n: 0 }; c[key].n++; };
+            this.stuRows.forEach(r => {
+                add('fin:' + r.fin, this.finLabel(r.fin), this.finColor(r.fin));
+                if (r.main !== 'activo') add('acad:' + r.main, this.acadLabel(r.main), this.acadColor(r.main));
+            });
+            return Object.values(c).sort((a, b) => a.key.localeCompare(b.key));
+        },
+        stuShown() {
+            const q = (this.stu.q || '').trim().toLowerCase(), f = this.stu.f;
+            return this.stuRows.filter(r => (!q || (r.name + ' ' + r.doc).toLowerCase().includes(q))
+                && (!f || (f.startsWith('fin:') ? 'fin:' + r.fin === f : 'acad:' + r.main === f)));
+        },
+        stuFinOld() {
+            const lim = Date.now() / 1000 - 7 * 86400;
+            return this.stuRows.some(r => r.fin_at && r.fin_at < lim);
+        },
         E() { return window.GmkBoard; },
         jornadas() {
             this.tick; // eslint-disable-line no-unused-expressions
@@ -872,7 +941,7 @@ Vue.component('schedule-board', {
                 if (f.jornada !== this.jornada && ![...f.users].some(u => users.has(u))) return;
                 if (f.to && f.to < (this.S.period.start || 0) + 7 * 86400) return;
                 out[f.day].push({ id: f.id, name: f.name, start: f.start, end: f.end, sev: 'fixed', fixed: true, locked: true,
-                    dim: this.onlyIssues || !this.matchQ(f.name, f.teacherid), from: f.from, to: f.to, day: f.day, samePeriod: f.samePeriod, size: f.users.size,
+                    dim: this.onlyIssues || !this.matchQ(f.name, f.teacherid), from: f.from, to: f.to, day: f.day, samePeriod: f.samePeriod, size: f.users.size, userids: [...f.users],
                     line1: this.E.hhmm(f.start) + '–' + this.E.hhmm(f.end) + ' · ya creada',
                     line2: (f.teacherid ? this.teacherName(f.teacherid) : 'Sin docente') + ' · ' + (f.roomid ? this.roomName(f.roomid) : 'sin aula'),
                     title: f.name + '\nClase ya creada: cuenta para los choques, no se mueve desde aquí.' });
@@ -1034,6 +1103,41 @@ Vue.component('schedule-board', {
         },
     },
     methods: {
+        openStudents(title, ids) {
+            this.stu = { show: true, title, ids: (ids || []).map(Number), q: '', f: '' };
+        },
+        // Resumen corto de alertas (mora / no activos) para mostrar bajo el grupo.
+        stuAlerts(ids) {
+            const st = (this.board && this.board.student_status) || {};
+            let mora = 0, inact = 0;
+            (ids || []).forEach(u => {
+                const x = st[u];
+                if (!x) return;
+                if (x.fin === 'mora') mora++;
+                if (!(x.acad || []).some(a => a.status === 'activo')) inact++;
+            });
+            const out = [];
+            if (mora) out.push(mora + ' en mora');
+            if (inact) out.push(inact + ' sin carrera activa');
+            return out.join(' · ');
+        },
+        acadLabel(s) {
+            return { activo: 'Activo', suspendido: 'Suspendido', desertor: 'Desertor', inactivo: 'Inactivo', aplazado: 'Aplazado',
+                retirado: 'Retirado', graduado: 'Graduado', egresado: 'Egresado', sin_carrera: 'Sin carrera' }[s] || (s || 'Sin dato');
+        },
+        acadColor(s) {
+            return { activo: '#15803D', suspendido: '#B91C1C', desertor: '#B91C1C', retirado: '#B91C1C', aplazado: '#B45309',
+                inactivo: '#64748B', graduado: '#1D4ED8', egresado: '#1D4ED8' }[s] || '#64748B';
+        },
+        finLabel(s) {
+            return { al_dia: 'Al día', mora: 'En mora', sincontrato: 'Sin contrato', contrato_especial: 'Contrato especial',
+                sin_contrato_o_usuario: 'Sin contrato o usuario en Odoo', becado: 'Becado' }[s] || (s || 'Sin dato financiero');
+        },
+        finColor(s) {
+            return { al_dia: '#15803D', mora: '#B91C1C', sincontrato: '#B45309', sin_contrato_o_usuario: '#B45309',
+                contrato_especial: '#1D4ED8', becado: '#1D4ED8' }[s] || '#64748B';
+        },
+        pillStyle(c) { return 'color:' + c + ';border-color:' + c + '55;background:' + c + '12'; },
         reportCtx() {
             return { S: this.S, E: this.E, board: this.board, conflicts: this.sum.conflicts, periodName: this.periodName || (this.board.period && this.board.period.name) || '',
                 dirty: this.dirty, draftInfo: this.draftInfo };

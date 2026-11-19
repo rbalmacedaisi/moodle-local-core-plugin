@@ -24,6 +24,7 @@
 namespace local_grupomakro_core\local\planning;
 
 use local_grupomakro_core\local\scheduler_settings;
+use local_grupomakro_core\local\academic_progress;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -187,6 +188,56 @@ class schedule_board {
      * @param int $periodid
      * @param array $demand resultado de demand_engine con 'grouping' (para niveles y cohortes de los grupos)
      */
+    /**
+     * Estado academico (estado en cada carrera) y financiero (gmk_financial_status, sincronizado desde Odoo) de unos
+     * estudiantes. SOLO LECTURA.
+     *
+     * @param int[] $uids
+     * @return array uid => ['name', 'doc', 'acad' => [['plan', 'status']], 'fin', 'fin_at']
+     */
+    public static function student_status(array $uids) {
+        global $DB;
+        $uids = array_values(array_unique(array_filter(array_map('intval', $uids))));
+        if (!$uids) {
+            return [];
+        }
+        $out = [];
+        foreach (array_chunk($uids, 1000) as $chunk) {
+            list($in, $params) = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'ss');
+            foreach ($DB->get_records_select('user', "id $in", $params, '',
+                    'id, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, idnumber') as $u) {
+                $out[(int)$u->id] = ['name' => fullname($u), 'doc' => (string)$u->idnumber, 'acad' => [], 'fin' => '', 'fin_at' => 0];
+            }
+            foreach ($DB->get_records_sql("SELECT llu.id, llu.userid, llu.status, llu.learningplanid, lp.name
+                      FROM {local_learning_users} llu
+                      JOIN {local_learning_plans} lp ON lp.id = llu.learningplanid
+                     WHERE llu.userrolename = 'student' AND llu.userid $in
+                  ORDER BY lp.name", $params) as $r) {
+                if (isset($out[(int)$r->userid])) {
+                    $out[(int)$r->userid]['acad'][] = ['plan' => (string)$r->name, 'status' => (string)$r->status,
+                        'aux' => in_array((int)$r->learningplanid, academic_progress::EXCLUDED_PLANS, true)];
+                }
+            }
+            foreach ($DB->get_records_select('gmk_financial_status', "userid $in", $params, '', 'id, userid, status, lastupdated') as $r) {
+                if (isset($out[(int)$r->userid])) {
+                    $out[(int)$r->userid]['fin'] = (string)$r->status;
+                    $out[(int)$r->userid]['fin_at'] = (int)$r->lastupdated;
+                }
+            }
+        }
+        // Los planes complementarios (cursos complementarios) solo se muestran si el estudiante no tiene otra carrera.
+        foreach ($out as &$x) {
+            $main = array_values(array_filter($x['acad'], function ($a) {
+                return !$a['aux'];
+            }));
+            $x['acad'] = array_map(function ($a) {
+                return ['plan' => $a['plan'], 'status' => $a['status']];
+            }, $main ?: $x['acad']);
+        }
+        unset($x);
+        return $out;
+    }
+
     /**
      * Estudiantes que estan en el grupo de una clase regular solo porque cursan el MODULO de esa asignatura: al matricular un
      * modulo se agrega al estudiante al grupo de la clase regular del periodo para que vea el contenido (enroll_module, 5b),
@@ -645,6 +696,19 @@ class schedule_board {
                 WHERE s.courseid > 0 ORDER BY c.fullname") as $r) {
             $catalog[] = ['courseid' => (int)$r->courseid, 'name' => $r->fullname];
         }
+        // Estado academico (por carrera) y financiero (Odoo) de los estudiantes de las fichas y de las clases fijas.
+        $statusids = [];
+        foreach ($groups as $g) {
+            foreach ($g['userids'] as $u) {
+                $statusids[(int)$u] = true;
+            }
+        }
+        foreach ($fixed as $f) {
+            foreach ($f['userids'] as $u) {
+                $statusids[(int)$u] = true;
+            }
+        }
+        $studentstatus = self::student_status(array_keys($statusids));
         return [
             'careers' => array_values(array_map(function ($r) {
                 return ['id' => (int)$r->id, 'name' => $r->name];
@@ -673,6 +737,8 @@ class schedule_board {
             }, array_intersect_key($byuser, array_flip(array_merge([], ...array_map(function ($g) {
                 return $g['userids'];
             }, $groups))))),
+            // Estado academico y financiero de cada estudiante (para el listado del grupo).
+            'student_status' => (object)$studentstatus,
             // Informe de excluidos por choques (con los datos del estudiante para cargarle la asignatura despues).
             'exclusions' => array_values(array_map(function ($e) use ($byuser, $DB, $published) {
                 $s = $byuser[(int)$e['userid']][0] ?? null;
