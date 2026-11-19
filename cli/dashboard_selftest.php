@@ -109,6 +109,18 @@ $fullname = function(int $id) {
 
 cli_writeln('Dashboard administrativo - prueba con rollback. Personal: ' . $fullname($staffid)
     . '; estudiante de prueba: ' . $fullname($studentid));
+// Real state before the test: the test must leave it exactly as it was.
+$realnames = ['dash_home_enabled', 'dash_alerts_enabled', 'dash_alerts_primed', 'dash_digest_enabled',
+    'dash_digest_hour', 'dash_digest_last', 'dash_hours', 'dash_sla', 'dash_sources_off'];
+$realconfig = function() use ($realnames) {
+    $out = [];
+    foreach ($realnames as $n) {
+        $out[$n] = get_config('local_grupomakro_core', $n);
+    }
+    return $out;
+};
+$snapshot = $realconfig();
+$snapalerts = $DB->count_records('gmk_dash_alert');
 $transaction = $DB->start_delegated_transaction();
 try {
     // Known configuration for the whole test, IN MEMORY: nothing goes to config_plugins nor to the
@@ -228,7 +240,8 @@ try {
     config::set('dash_alerts_enabled', 1);
     config::set('dash_alerts_primed', 0);
     $check('la configuración de prueba no llega a la base ni a la caché compartida (el cron no la ve)',
-        !get_config('local_grupomakro_core', 'dash_alerts_enabled') && config::get_int('dash_alerts_enabled') === 1);
+        $realconfig() === $snapshot && config::get_int('dash_alerts_enabled') === 1
+        && config::get_int('dash_alerts_primed') === 0);
     $r = escalation::run($now, false);
     $check('primera pasada en silencio: registra niveles sin mensajes', $r['silent'] === 1 && $r['messages'] === 0
         && $DB->record_exists('gmk_dash_alert', ['srckey' => 'withdrawals', 'itemref' => $tag]), json_encode($r));
@@ -325,11 +338,13 @@ try {
 config::use_database();
 dashboard::invalidate_all();
 
+$check('al terminar, la configuración real quedó igual que antes', $realconfig() === $snapshot);
+$check('al terminar, las filas reales de gmk_dash_alert quedaron igual (' . $snapalerts . ')',
+    $DB->count_records('gmk_dash_alert') === $snapalerts);
 $failed = count(array_filter($results, function($r) {
     return !$r[0];
 }));
 cli_writeln('');
-cli_writeln(sprintf('%d pruebas, %d fallas. Todo revertido (filas de gmk_dash_alert: %d; alertas activas: %d; inicio: %d).',
-    count($results), $failed, $DB->count_records('gmk_dash_alert'), (int)get_config('local_grupomakro_core', 'dash_alerts_enabled'),
-    (int)get_config('local_grupomakro_core', 'dash_home_enabled')));
+cli_writeln(sprintf('%d pruebas, %d fallas. Todo revertido (filas de gmk_dash_alert: %d, igual que antes).',
+    count($results), $failed, $DB->count_records('gmk_dash_alert')));
 exit($failed ? 1 : 0);

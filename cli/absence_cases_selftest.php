@@ -140,8 +140,16 @@ try {
         'a tiempo ' . var_export($s['ontime_pct'], true) . '%');
     $check('el historial no tiene API de edición ni borrado', !method_exists(cases::class, 'update_log')
         && !method_exists(cases::class, 'delete_log'));
-    $ev = $DB->count_records('logstore_standard_log', ['eventname' => '\\local_grupomakro_core\\event\\absence_case_logged']);
-    cli_writeln('  (eventos absence_case_logged en el log: ' . $ev . ', se descartan con el rollback)');
+    // The event is triggered by add_log() above. It is NOT looked up in
+    // logstore_standard_log: that table has no index on eventname and the scan
+    // (millions of rows, inside this open transaction) hung in production. The
+    // event is validated in memory instead: same data add_log() uses.
+    $event = \local_grupomakro_core\event\absence_case_logged::create([
+        'objectid' => (int)$logid, 'context' => context_system::instance(), 'relateduserid' => (int)$case->userid,
+        'other' => ['caseid' => (int)$case->id, 'result' => 'no_contesta', 'status' => cases::S_FOLLOWUP],
+    ]);
+    $check('el evento de auditoría se arma bien (sin consultar el log)', $event->get_description() !== ''
+        && strpos($event->get_url()->out(false), 'case=' . (int)$case->id) !== false);
 } catch (\Throwable $e) {
     $check('excepción inesperada', false, get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 }
