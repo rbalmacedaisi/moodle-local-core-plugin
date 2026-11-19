@@ -129,11 +129,11 @@ function local_grupomakro_core_get_staff_landing_url(): ?moodle_url {
     $context = context_system::instance();
 
     // Dashboard administrativo "Mis pendientes" (20261001129): el inicio de
-    // todos los administrativos cuando dash_home_enabled = 1. Los
-    // administradores del sitio siguen como antes (decision de Ramiro,
-    // 19-nov-2026): has_capability() les daria true por doanything. Estudiantes
-    // y docentes no tienen la capacidad y siguen su propio camino.
-    if (get_config('local_grupomakro_core', 'dash_home_enabled') && !is_siteadmin()
+    // todos los administrativos cuando dash_home_enabled = 1, administradores
+    // del sitio incluidos (Ramiro, 19-nov-2026: "que Joyce tambien aterrice en
+    // el dashboard y todos los demas"). Estudiantes y docentes no tienen la
+    // capacidad y siguen su propio camino.
+    if (get_config('local_grupomakro_core', 'dash_home_enabled')
             && has_capability('local/grupomakro_core:view_admin_dashboard', $context)) {
         return new moodle_url('/local/grupomakro_core/pages/admin_dashboard.php');
     }
