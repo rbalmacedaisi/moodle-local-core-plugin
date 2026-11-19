@@ -24,19 +24,21 @@ class manual_enroll extends external_api {
             'classId' => new external_value(PARAM_INT, 'The class ID'),
             'userId' => new external_value(PARAM_INT, 'The user ID to enroll'),
             'learningPlanId' => new external_value(PARAM_INT, 'Preferred learning plan for progress mapping', VALUE_DEFAULT, 0),
+            'allowApproved' => new external_value(PARAM_BOOL, 'Enrol even if the subject is already approved (retake)', VALUE_DEFAULT, false),
         ]);
     }
 
     /**
      * Execute.
      */
-    public static function execute($classId, $userId, $learningPlanId = 0) {
+    public static function execute($classId, $userId, $learningPlanId = 0, $allowApproved = false) {
         global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'classId' => $classId,
             'userId' => $userId,
-            'learningPlanId' => $learningPlanId
+            'learningPlanId' => $learningPlanId,
+            'allowApproved' => $allowApproved
         ]);
 
         $context = context_system::instance();
@@ -78,6 +80,30 @@ class manual_enroll extends external_api {
         }
 
         $alreadyInGroup = (!empty($class->groupid) && groups_is_member((int)$class->groupid, (int)$params['userId']));
+
+        // Approved guard: enrolling forces the subject back to "cursando", so a
+        // student who already passed it would lose the approved status (and
+        // collect absences in a class they never attend). A deliberate retake
+        // must be confirmed by the operator with allowApproved.
+        if (!$alreadyInGroup && empty($params['allowApproved'])) {
+            $approved = $DB->get_records_select('gmk_course_progre',
+                'userid = :userid AND courseid = :courseid AND status IN (' . COURSE_COMPLETED . ', ' . COURSE_APPROVED . ')',
+                ['userid' => $params['userId'], 'courseid' => $class->corecourseid],
+                'grade DESC', 'id, grade, grade_classid, classid, coursename', 0, 1);
+            if ($approved) {
+                $row = reset($approved);
+                $sourceClassId = (int)($row->grade_classid ?: $row->classid);
+                $sourceClass = $sourceClassId ? $DB->get_field('gmk_class', 'name', ['id' => $sourceClassId]) : '';
+                $student = $DB->get_record('user', ['id' => $params['userId']], 'firstname, lastname');
+                $studentName = $student ? fullname($student) : ('userid=' . $params['userId']);
+                return [
+                    'status' => 'approved',
+                    'message' => "$studentName ya aprobó {$row->coursename} con " . format_float($row->grade, 2) .
+                        ($sourceClass ? " en $sourceClass" : '') .
+                        '. Inscribirlo la vuelve a poner en "Cursando". Confirme solo si debe recursarla.',
+                ];
+            }
+        }
 
         // Before adding to group, ensure user is enrolled in the core course
         $enrolplugin = enrol_get_plugin('manual');

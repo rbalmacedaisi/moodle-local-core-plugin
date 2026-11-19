@@ -144,6 +144,11 @@ Vue.component('deleteclass',{
             window.axios.get(url, { params })
                 // If the request is resolved successfully, perform the following operations.
                 .then(response => {
+                    // The server refuses some deletions (e.g. an ended class with grades): show why.
+                    if (response.data && response.data.status === -1) {
+                        alert(response.data.message);
+                        return;
+                    }
                     // Reload the current page to reflect the changes after successful removal.
                     location.reload();
                 })

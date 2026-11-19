@@ -53,6 +53,12 @@ class revert_approval extends external_api {
             return ['status' => 'warning', 'message' => 'Class is not approved.'];
         }
 
+        try {
+            gmk_require_class_without_final_grades($class, 'revertir la aprobación de');
+        } catch (moodle_exception $e) {
+            return ['status' => 'error', 'message' => $e->a];
+        }
+
         mtrace("Reverting approval for class {$class->id}...");
 
         // 1. Get students in the group

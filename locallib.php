@@ -2712,6 +2712,42 @@ function gmk_availability_has_group($availability, $groupid)
     return gmk_availability_node_has_group($decoded, (int)$groupid);
 }
 
+/**
+ * Refuse to delete or un-approve a class that already ended with grades in it.
+ *
+ * Deleting the class drops its grade category and items, and reverting its
+ * approval resets the students' progress to "Disponible": both wipe the result
+ * of students who finished the subject (class 9468, deleted on 2026-10-05 after
+ * its students got 100). An ended class with grades must be closed instead.
+ * Classes still running are not affected, so moving students and deleting an
+ * in-progress class keeps working.
+ *
+ * @param stdClass $class gmk_class record.
+ * @param string $action verb for the message ("eliminar", "revertir la aprobación de").
+ * @throws moodle_exception when the class ended and some student has a grade.
+ */
+function gmk_require_class_without_final_grades(stdClass $class, string $action): void {
+    global $DB;
+
+    if (empty($class->enddate) || (int)$class->enddate >= time() || empty($class->gradecategoryid)) {
+        return;
+    }
+    $graded = (int)$DB->count_records_sql(
+        "SELECT COUNT(DISTINCT gg.userid)
+           FROM {grade_grades} gg
+           JOIN {grade_items} gi ON gi.id = gg.itemid
+          WHERE gi.categoryid = :cat
+            AND gi.itemtype IN ('mod', 'manual')
+            AND gg.finalgrade > 0",
+        ['cat' => (int)$class->gradecategoryid]
+    );
+    if ($graded > 0) {
+        throw new moodle_exception('generalexceptionmessage', 'error', '',
+            "No se puede $action la clase \"{$class->name}\": ya terminó y $graded estudiante(s) tienen " .
+            'calificaciones en ella. Ciérrela para conservar sus notas.');
+    }
+}
+
 function delete_class($classId, $reason = null)
 {
     global $DB, $USER, $CFG;
@@ -2734,6 +2770,7 @@ function delete_class($classId, $reason = null)
     }
 
     $class = $DB->get_record('gmk_class', ['id' => $classId], '*', MUST_EXIST);
+    gmk_require_class_without_final_grades($class, 'eliminar');
     $classid = (int)$class->id;
     $courseid = (int)($class->corecourseid ?? 0);
     $courseexists = ($courseid > 0) && $DB->record_exists('course', ['id' => $courseid]);

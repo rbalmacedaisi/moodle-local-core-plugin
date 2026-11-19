@@ -3302,9 +3302,19 @@ Vue.component('grademodal', {
                     learningPlanId: Number(this.selectedCourse && this.selectedCourse.learningplanid ? this.selectedCourse.learningplanid : 0),
                 };
 
-                const response = await window.axios.get(url, { params });
-                const payload = response && response.data ? response.data : {};
-                const result = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                let response = await window.axios.get(url, { params });
+                let payload = response && response.data ? response.data : {};
+                let result = (payload.status === 'success' && payload.data) ? payload.data : payload;
+
+                // Subject already approved: only a confirmed retake goes through.
+                if (result.status === 'approved') {
+                    if (!window.confirm(result.message)) {
+                        return;
+                    }
+                    response = await window.axios.get(url, { params: { ...params, allowApproved: 1 } });
+                    payload = response && response.data ? response.data : {};
+                    result = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                }
 
                 if (result.status === 'ok' || result.status === 'warning') {
                     item.alreadyenrolled = true;

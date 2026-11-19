@@ -753,12 +753,23 @@ function ($, ModalFactory, ModalEvents) {
             var classId = btn.data('classid');
             btn.prop('disabled', true).text('Inscribiendo…');
             require(['core/ajax'], function (Ajax) {
-                Ajax.call([{
-                    methodname: 'local_grupomakro_manual_enroll',
-                    args: { classId: classId, userId: userId }
-                }])[0].then(function (r) {
+                var enroll = function (allowApproved) {
+                    return Ajax.call([{
+                        methodname: 'local_grupomakro_manual_enroll',
+                        args: { classId: classId, userId: userId, allowApproved: allowApproved }
+                    }])[0];
+                };
+                enroll(false).then(function (r) {
+                    // Subject already approved: only a confirmed retake goes through.
+                    if (r.status === 'approved' && confirm(r.message)) {
+                        return enroll(true);
+                    }
+                    return r;
+                }).then(function (r) {
                     if (r.status === 'ok') {
                         btn.removeClass('btn-success').addClass('btn-secondary').text('Inscrito ✓');
+                    } else if (r.status === 'approved') {
+                        btn.prop('disabled', false).text('Inscribir');
                     } else {
                         btn.prop('disabled', false).text('Inscribir');
                         alert('Error: ' + r.message);

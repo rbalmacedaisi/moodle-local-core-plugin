@@ -2121,7 +2121,8 @@ try {
             $classid = required_param('classId', PARAM_INT);
             $userid = required_param('userId', PARAM_INT);
             $learningplanid = optional_param('learningPlanId', 0, PARAM_INT);
-            $result = \local_grupomakro_core\external\schedule\manual_enroll::execute($classid, $userid, $learningplanid);
+            $allowapproved = optional_param('allowApproved', 0, PARAM_BOOL);
+            $result = \local_grupomakro_core\external\schedule\manual_enroll::execute($classid, $userid, $learningplanid, $allowapproved);
             $response = [
                 'status' => 'success',
                 'data' => $result,
