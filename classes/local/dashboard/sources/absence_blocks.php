@@ -15,8 +15,12 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Fuente: estudiantes bloqueados por inasistencia en clases abiertas, sin
+ * Fuente: estudiantes bloqueados por inasistencia en clases EN CURSO, sin
  * revisar (alert_level 3, blocked_at sin unblocked_at posterior).
+ *
+ * Solo clases que aun no terminan (decision de Ramiro, 19-nov-2026): en una
+ * clase ya terminada el bloqueo es el resultado normal (perdio la clase por
+ * faltas) y no queda nada que revisar; contarlos solo metia ruido (91 de 137).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -56,10 +60,11 @@ class absence_blocks extends source {
                                              c.name AS classname
                                         FROM {gmk_class_absence_state} a
                                         JOIN {gmk_class} c ON c.id = a.classid AND c.closed = 0
+                                             AND (c.enddate IS NULL OR c.enddate = 0 OR c.enddate > :now)
                                         JOIN {user} u ON u.id = a.userid AND u.deleted = 0
                                        WHERE a.alert_level = 3 AND a.blocked_at > 0
                                          AND (a.unblocked_at IS NULL OR a.unblocked_at < a.blocked_at)
-                                    ORDER BY a.blocked_at ASC", [], 0, self::MAX_ROWS);
+                                    ORDER BY a.blocked_at ASC", ['now' => $now], 0, self::MAX_ROWS);
         $out = [];
         foreach ($rows as $r) {
             $out[] = $this->item('absence.block', 'ABS-' . $r->id,
