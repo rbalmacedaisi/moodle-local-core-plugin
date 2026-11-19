@@ -1742,7 +1742,9 @@ class manager {
                     'typename' => $letter['typename'],
                     'status' => $letter['status'],
                     'statuslabel' => $isrequester ? $letter['studentlabel'] : $letter['statuslabel'],
-                    'due_at' => $letter['due_at'],
+                    // Al estudiante solo la fecha estimada mientras se prepara (no el plazo interno de retiro).
+                    'due_at' => (!$isrequester || in_array($letter['status'],
+                        \local_grupomakro_core\local\letters\manager::STUDENT_DUE_STATUSES, true)) ? $letter['due_at'] : 0,
                     'sla_level' => $isrequester ? 0 : $letter['sla_level'],
                     'url' => $isrequester ? config::portal_url('/solicitudes-cartas') : $letter['url'],
                 ] : ['id' => 0, 'typename' => '', 'status' => '', 'statuslabel' => '', 'due_at' => 0, 'sla_level' => 0,

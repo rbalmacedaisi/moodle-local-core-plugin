@@ -394,6 +394,9 @@ class manager {
         return $request;
     }
 
+    /** Statuses whose due_at is an estimated date the student may see. */
+    const STUDENT_DUE_STATUSES = ['solicitada', 'pagada', 'pendiente_gestion'];
+
     /** Statuses still in progress (not finished). */
     const OPEN_STATUSES = ['solicitada', 'pendiente_pago', 'pagada', 'pendiente_gestion', 'pendiente_recoleccion'];
 
@@ -846,13 +849,14 @@ class manager {
         foreach ($records as $record) {
             $document = $docs[(int)$record->id] ?? null;
             $ticket = $tickets[(int)$record->id] ?? null;
-            $isfinal = !in_array((string)$record->status, self::OPEN_STATUSES, true);
             $result[] = [
                 'studentlabel' => self::student_status_label((string)$record->status),
                 'steps' => self::student_steps($record),
                 'observation' => (string)($record->observation ?? ''),
                 'deliverymode' => (string)$record->deliverymode_snapshot,
-                'due_at' => $isfinal ? 0 : (int)$record->due_at,
+                // Fecha estimada solo mientras se prepara: en "lista para retirar" el plazo
+                // es el aviso interno al personal, no una fecha para el estudiante.
+                'due_at' => in_array((string)$record->status, self::STUDENT_DUE_STATUSES, true) ? (int)$record->due_at : 0,
                 'rejection_reason' => (string)($record->rejection_reason ?? ''),
                 'cancel_reason' => (string)($record->cancel_reason ?? ''),
                 'pickup_note' => (string)$record->status === self::STATUS_PENDIENTE_RECOLECCION
