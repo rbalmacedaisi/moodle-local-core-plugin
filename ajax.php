@@ -2811,7 +2811,8 @@ try {
             require_once($CFG->dirroot . '/local/grupomakro_core/classes/external/schedule/withdraw_from_course.php');
             $corecourseid = required_param('coreCourseId', PARAM_INT);
             $userid       = required_param('userId', PARAM_INT);
-            $result = \local_grupomakro_core\external\schedule\withdraw_from_course::execute($userid, $corecourseid);
+            $confirmmodules = optional_param('confirmModules', 0, PARAM_INT);
+            $result = \local_grupomakro_core\external\schedule\withdraw_from_course::execute($userid, $corecourseid, $confirmmodules);
             $response = [
                 'status' => 'success',
                 'data'   => $result,

@@ -31,15 +31,17 @@ class withdraw_from_course extends external_api {
         return new external_function_parameters([
             'userId'         => new external_value(PARAM_INT, 'Student user ID'),
             'coreCourseId'   => new external_value(PARAM_INT, 'Moodle course ID to withdraw from'),
+            'confirmModules' => new external_value(PARAM_INT, '1 = also drop ACTIVE module enrollments', VALUE_DEFAULT, 0),
         ]);
     }
 
-    public static function execute($userId, $coreCourseId) {
+    public static function execute($userId, $coreCourseId, $confirmModules = 0) {
         global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(), [
             'userId'       => $userId,
             'coreCourseId' => $coreCourseId,
+            'confirmModules' => $confirmModules,
         ]);
 
         $context = context_system::instance();
@@ -51,6 +53,30 @@ class withdraw_from_course extends external_api {
 
         $user   = $DB->get_record('user', ['id' => $userId, 'deleted' => 0], 'id,firstname,lastname', MUST_EXIST);
         $course = $DB->get_record('course', ['id' => $coreCourseId], 'id,fullname,shortname', MUST_EXIST);
+
+        // ── 0. Active modules are only dropped when explicitly confirmed ─────────
+        // "Retirar asignatura completa" also deletes every module enrollment of the
+        // subject. A student taking the subject as a module (often already paid)
+        // lost it without warning when staff only meant to drop the regular class
+        // (u2476, 2026-11-19). Without confirmModules nothing is changed and the
+        // caller is told which active modules would be removed.
+        if (empty($params['confirmModules'])) {
+            $activeModules = $DB->get_records_sql(
+                "SELECT me.id, c.name
+                   FROM {gmk_module_enrollment} me
+                   JOIN {gmk_class} c ON c.id = me.classid
+                  WHERE me.userid = :uid AND c.corecourseid = :cid AND me.status = 'active'",
+                ['uid' => $userId, 'cid' => $coreCourseId]);
+            if (!empty($activeModules)) {
+                $names = array_map(function ($m) { return format_string($m->name); }, array_values($activeModules));
+                return [
+                    'status'  => 'confirm',
+                    'message' => 'El estudiante tiene ' . count($names) . ' módulo(s) activo(s) en esta asignatura: '
+                        . implode(', ', $names) . '. Retirar la asignatura completa también elimina el módulo. '
+                        . 'Si solo quiere quitar la clase regular, use "Retirar de clase regular".',
+                ];
+            }
+        }
 
         // ── 1. Remove from EVERY class group of this course ──────────────────────
         $classGroups = $DB->get_records('gmk_class', ['corecourseid' => $coreCourseId], '', 'id,groupid,name');
@@ -137,7 +163,7 @@ class withdraw_from_course extends external_api {
 
     public static function execute_returns() {
         return new external_single_structure([
-            'status'  => new external_value(PARAM_TEXT, 'ok | error'),
+            'status'  => new external_value(PARAM_TEXT, 'ok | confirm | error'),
             'message' => new external_value(PARAM_TEXT, 'Descriptive message'),
         ]);
     }

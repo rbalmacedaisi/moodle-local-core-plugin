@@ -3701,16 +3701,45 @@ Vue.component('grademodal', {
                 this.withdrawingCourseKey = this.getCourseKey(course);
                 try {
                     const url = window.wsUrl || (window.location.origin + '/local/grupomakro_core/ajax.php');
-                    const response = await window.axios.get(url, {
-                        params: {
-                            action:       'local_grupomakro_withdraw_from_course',
-                            sesskey:      M.cfg.sesskey,
-                            userId:       Number(this.dataStudent.id),
-                            coreCourseId: courseId,
-                        },
-                    });
-                    const payload = response && response.data ? response.data : {};
-                    const result  = (payload.status === 'success' && payload.data) ? payload.data : payload;
+                    const callWithdraw = async (confirmModules) => {
+                        const response = await window.axios.get(url, {
+                            params: {
+                                action:         'local_grupomakro_withdraw_from_course',
+                                sesskey:        M.cfg.sesskey,
+                                userId:         Number(this.dataStudent.id),
+                                coreCourseId:   courseId,
+                                confirmModules: confirmModules ? 1 : 0,
+                            },
+                        });
+                        const payload = response && response.data ? response.data : {};
+                        return (payload.status === 'success' && payload.data) ? payload.data : payload;
+                    };
+                    let result = await callWithdraw(false);
+                    // Active module in the subject: the server changed nothing and
+                    // asks for an explicit second confirmation before dropping it.
+                    if (result.status === 'confirm') {
+                        let alsoModules = false;
+                        if (window.Swal) {
+                            const second = await window.Swal.fire({
+                                icon: 'warning',
+                                title: 'Tiene un módulo activo',
+                                text: result.message || 'Retirar la asignatura completa también elimina el módulo activo.',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#6c757d',
+                                confirmButtonText: 'Sí, retirar también el módulo',
+                                cancelButtonText: 'Cancelar',
+                            });
+                            alsoModules = second.isConfirmed;
+                        } else {
+                            alsoModules = window.confirm((result.message || '') + ' ¿Retirar también el módulo?');
+                        }
+                        if (!alsoModules) {
+                            this.showMessage('info', 'No se retiró nada.');
+                            return;
+                        }
+                        result = await callWithdraw(true);
+                    }
                     if (result.status === 'ok') {
                         this.showMessage('success', result.message || 'Estudiante retirado completamente.');
                         await this.getpensum();
