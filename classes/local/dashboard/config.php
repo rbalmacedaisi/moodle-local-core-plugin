@@ -99,6 +99,8 @@ class config {
             'label' => 'Citas de psicología pasadas sin cerrar'],
         'modules.paid'       => ['kind' => 'h', 'warn' => 6, 'due' => 8, 'crit' => 16, 'sup' => 'gmk_secretaria_academica',
             'label' => 'Módulos pagados sin matricular'],
+        'modules.overdue'    => ['kind' => 'd', 'warn' => 1, 'due' => 3, 'crit' => 10, 'sup' => 'gmk_director_academico',
+            'label' => 'Módulos vencidos sin completar'],
         'dlq.pending'        => ['kind' => 'h', 'warn' => 2, 'due' => 4, 'crit' => 8, 'sup' => 'gmk_soporte_ti',
             'label' => 'Webhooks financieros fallidos'],
     ];

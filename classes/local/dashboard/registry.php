@@ -40,6 +40,7 @@ class registry {
         sources\wellness_events::class,
         sources\psychology::class,
         sources\modules_paid::class,
+        sources\modules_overdue::class,
         sources\webhook_dlq::class,
     ];
 
