@@ -33,6 +33,7 @@ use external_multiple_structure;
 use external_single_structure;
 use external_value;
 use local_grupomakro_core\local\support\manager;
+use local_grupomakro_core\local\support\restriction;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -57,6 +58,20 @@ class get_catalog extends external_api {
             'max_open' => \local_grupomakro_core\local\support\config::get_int('tkt_max_open'),
             'max_body' => manager::MAX_BODY,
             'attachlimits' => structures::export_attachlimits(),
+            // Mora (20261001132): el portal muestra primero el boton de Cobros.
+            'restriction' => self::export_restriction(
+                $params['audience'] === 'teacher' ? null : restriction::for_user($userid)),
+        ];
+    }
+
+    private static function export_restriction(?array $r): array {
+        return [
+            'active' => $r !== null,
+            'reason' => $r['reason'] ?? '',
+            'title' => $r['title'] ?? '',
+            'message' => $r['message'] ?? '',
+            'url' => $r['url'] ?? '',
+            'label' => $r['label'] ?? '',
         ];
     }
 
@@ -95,6 +110,14 @@ class get_catalog extends external_api {
             'max_open' => new external_value(PARAM_INT, 'Max open requests per student'),
             'max_body' => new external_value(PARAM_INT, 'Max characters per message'),
             'attachlimits' => structures::attachlimits(),
+            'restriction' => new external_single_structure([
+                'active' => new external_value(PARAM_BOOL, 'Portal blocked for a reason the help desk cannot solve'),
+                'reason' => new external_value(PARAM_ALPHANUMEXT, 'mora'),
+                'title' => new external_value(PARAM_TEXT, 'Heading'),
+                'message' => new external_value(PARAM_TEXT, 'Explanation'),
+                'url' => new external_value(PARAM_RAW, 'WhatsApp link with the initial message'),
+                'label' => new external_value(PARAM_TEXT, 'Button text'),
+            ], 'Access restriction to redirect (mora -> Cobros)', VALUE_OPTIONAL),
         ]);
     }
 }

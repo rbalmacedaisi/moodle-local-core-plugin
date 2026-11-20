@@ -63,7 +63,13 @@ class setup {
             'Tu solicitud sigue en cola; te responderemos en breve. Gracias por tu paciencia.'],
         'reminder' => ['Recordatorio al estudiante sin respuesta (horas hábiles)',
             '¿Sigues necesitando ayuda? Si no recibimos respuesta, cerraremos tu solicitud en {horas_cierre} horas hábiles.'],
+        'financial_block' => ['Mora: acceso restringido por facturas vencidas', self::FINANCIAL_BLOCK_BODY],
     ];
+
+    /** 20261001132: también lo inserta el upgrade en instalaciones ya sembradas. */
+    const FINANCIAL_BLOCK_BODY = 'Vemos que tu acceso a la plataforma está restringido por facturas vencidas. '
+        . 'Eso lo atiende Cobros por WhatsApp: {enlace_cobros} . Cuando regularices, el acceso se habilita solo en unos minutos. '
+        . 'Si tu consulta es por otro tema, cuéntanos aquí y te ayudamos.';
 
     /**
      * @return array ['seeded' => bool, 'missingusers' => int[]]

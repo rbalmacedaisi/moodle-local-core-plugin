@@ -67,6 +67,12 @@ class config {
         'tkt_rating_days'       => [7,    'int',  'Pedir calificación de tickets cerrados en los últimos (días)'],
         'tkt_digest_hour'       => [7,    'int',  'Hora del resumen diario a gerencia y supervisores (0-23)'],
         'tkt_digest_enabled'    => [1,    'int',  'Resumen diario activo (1 sí, 0 no)'],
+        // Mora (20261001132): quien tiene el portal bloqueado por facturas vencidas
+        // ve primero el botón de Cobros (WhatsApp del área Finanzas).
+        'tkt_mora_redirect'     => [1,    'int',  'Mora: mostrar el botón de Cobros por WhatsApp a quien tiene el acceso restringido (1 sí, 0 no)'],
+        'tkt_mora_label'        => ['Escribir a Cobros por WhatsApp', 'text', 'Mora: texto del botón de Cobros'],
+        'tkt_mora_whatsapp'     => ['Hola, soy {estudiante} (cédula {cedula}). Tengo el acceso a la plataforma restringido por facturas vencidas y quiero ponerme al día.',
+            'text', 'Mora: mensaje inicial de WhatsApp ({estudiante}, {cedula})'],
         // JSON: se editan en la pestaña "Avisos y escalamiento" (ver policy).
         'tkt_escalation'        => ['', 'json', 'Escalera de escalamiento por nivel'],
         'tkt_incisive'          => ['', 'json', 'Perfiles de aviso incisivo por área, administradores y persona'],

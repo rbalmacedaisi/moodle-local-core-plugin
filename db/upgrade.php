@@ -5091,5 +5091,20 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001131, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001132) {
+        // Mesa de ayuda: acceso restringido por mora -> Cobros por WhatsApp
+        // (caso TKT-2026-0007). Plantilla editable; los ajustes nuevos
+        // (tkt_mora_*) toman su valor por defecto sin escribir nada.
+        if ($dbman->table_exists('gmk_tkt_template')
+                && !$DB->record_exists('gmk_tkt_template', ['code' => 'financial_block'])
+                && get_config('local_grupomakro_core', 'tkt_seeded')) {
+            $DB->insert_record('gmk_tkt_template', (object)['code' => 'financial_block',
+                'name' => 'Mora: acceso restringido por facturas vencidas',
+                'body' => \local_grupomakro_core\local\support\setup::FINANCIAL_BLOCK_BODY,
+                'enabled' => 1, 'timemodified' => time()]);
+        }
+        upgrade_plugin_savepoint(true, 20261001132, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

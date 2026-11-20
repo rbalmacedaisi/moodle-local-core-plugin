@@ -351,7 +351,7 @@ class manager {
     /**
      * External URL with the initial message appended (wa.me understands ?text=).
      */
-    private static function external_link(stdClass $area, string $message): string {
+    public static function external_link(stdClass $area, string $message): string {
         $url = trim((string)$area->external_url);
         if ($message === '') {
             return $url;
@@ -488,6 +488,12 @@ class manager {
 
         $vars = self::template_vars($ticket, $area, $category);
         self::system_message($ticket, 'created', $vars);
+        // Mora (20261001132): el portal ya le ofrecio Cobros; si abrio igual,
+        // el aviso con el enlace queda en el chat y el agente ve la nota.
+        $block = $audience === 'student' ? restriction::for_user($userid) : null;
+        if ($block) {
+            restriction::on_ticket_created($ticket, $block, $vars);
+        }
         if (!business_hours::is_open($area, $now)) {
             self::out_of_hours_message($ticket, $area, $vars);
         }
@@ -2038,7 +2044,7 @@ class manager {
         return $available ?: $ids;
     }
 
-    private static function insert_message(stdClass $ticket, int $senderid, string $role, string $body,
+    public static function insert_message(stdClass $ticket, int $senderid, string $role, string $body,
             bool $internal): stdClass {
         global $DB;
         $now = time();
