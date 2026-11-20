@@ -706,6 +706,12 @@ class course_grade_resolver
 
     /**
      * Build the "Moodle course total" map: [courseid => gradeval].
+     *
+     * Only a course total out of 100 is a grade on the 0-100 scale. With natural
+     * aggregation the total adds up every class category of the subject (700
+     * points in a course with seven classes), so 87.5 there is 12.5% and reading
+     * it as 87.5/100 approved a failed subject. Totals on any other scale are
+     * left out: the cascade then keeps the grade already stored.
      */
     private static function bulk_course_total_grades($DB, int $userid, int $corecourseid): array
     {
@@ -720,6 +726,7 @@ class course_grade_resolver
                 AND gg.userid = :userid
               WHERE gi.itemtype = 'course'
                 AND gi.courseid = :cid
+                AND gi.grademax BETWEEN 99.99 AND 100.01
            GROUP BY gi.courseid
            ORDER BY gi.courseid ASC",
             ['userid' => $userid, 'cid' => $corecourseid]
@@ -1619,6 +1626,12 @@ class course_grade_resolver
 
         if (in_array($current, [0, 1, 99], true)) {
             return $current;
+        }
+        // Pendiente Revalida only follows a class grade of 70.9 or less (a passing
+        // grade is never eligible), so a passing grade from any source, historical
+        // included, means the subject was approved and the 6 was left behind.
+        if ($current === 6 && $passed) {
+            return 4;
         }
         // Historical sources only fill in a grade; they never decide a status.
         if (strpos((string)$res['source'], 'historical_') === 0) {
