@@ -299,7 +299,7 @@ try {
     if ($room()) {
         $ticat = (int)$DB->get_field('gmk_tkt_category', 'id', ['areaid' => (int)$ti['id'], 'name' => 'Acceso y contraseña'])
             ?: (int)$ti['topics'][0]['id'];
-        $draft = $mkdraft($studentid, 'IMG_3785.jpg', $png);
+        $draft = $mkdraft($studentid, 'IMG_3785.png', $png);
         $tm = manager::create($studentid, $ticat, 'No puedo ingresar a clases', 'Tengo clases en breve', 0, 'student', $draft);
         $pub = $publicbodies($tm);
         $notice = array_values(array_filter($pub, function($b) {
