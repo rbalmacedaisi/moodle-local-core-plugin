@@ -127,12 +127,30 @@ if (!$isadmin && $targetuserid <= 0) {
                 $endCompact,
                 date('Ymd')
             );
+            // Horarios aun no publicados (Administracion > schedule_hide_from,
+            // AAAA-MM-DD): docentes y estudiantes no ven sesiones desde ese dia
+            // hasta que academia publique los nuevos horarios y vacie el ajuste.
+            // Pedido de academia 2026-11-24 para las clases de continuidad. Quien
+            // gestiona o consulta horarios ($isadmin) sigue viendolo todo.
+            $hidefrom = 0;
+            $hidefromcfg = trim((string)get_config('local_grupomakro_core', 'schedule_hide_from'));
+            if (!$isadmin && preg_match('/^\d{4}-\d{2}-\d{2}$/', $hidefromcfg)) {
+                $hidefrom = (int)make_timestamp((int)substr($hidefromcfg, 0, 4),
+                    (int)substr($hidefromcfg, 5, 2), (int)substr($hidefromcfg, 8, 2));
+            }
+            $cachekey .= '_h' . $hidefrom;
+
             $cached = $cache->get($cachekey);
             if ($cached !== false && is_string($cached)) {
                 return ['events' => $cached];
             }
 
             $eventDaysFiltered = get_class_events($targetuserid, $params['initDate'], $params['endDate']);
+            if ($hidefrom > 0) {
+                $eventDaysFiltered = array_filter($eventDaysFiltered, function ($event) use ($hidefrom) {
+                    return (int)($event->timestart ?? 0) < $hidefrom;
+                });
+            }
             $encoded = json_encode(array_values($eventDaysFiltered));
             $cache->set($cachekey, $encoded);
 

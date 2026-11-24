@@ -934,6 +934,14 @@ if ($hassiteconfig) {
             PARAM_TEXT
         ));
 
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/schedule_hide_from',
+            'Ocultar horarios desde',
+            'AAAA-MM-DD. Mientras tenga una fecha, docentes y estudiantes no ven en el calendario las sesiones desde ese día (p. ej. la parte de las clases de continuidad que cae en el siguiente periodo), hasta que se publiquen los nuevos horarios. Quien gestiona horarios sigue viéndolo todo. Vacío = se ve todo.',
+            '',
+            PARAM_TEXT
+        ));
+
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/revalida_webhook_token',
             'Token webhook de pago de reválidas',
