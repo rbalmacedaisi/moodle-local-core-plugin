@@ -131,10 +131,29 @@ if (!$isadmin && $targetuserid <= 0) {
             // AAAA-MM-DD): docentes y estudiantes no ven sesiones desde ese dia
             // hasta que academia publique los nuevos horarios y vacie el ajuste.
             // Pedido de academia 2026-11-24 para las clases de continuidad. Quien
-            // gestiona o consulta horarios ($isadmin) sigue viendolo todo.
+            // gestiona o consulta horarios sigue viendolo todo. Ojo: $isadmin no
+            // sirve para esto, porque view_schedules lo trae el arquetipo 'user'
+            // (todo usuario autenticado). Ven todo solo el administrador del sitio
+            // y quien tenga en el sistema un rol que conceda view_schedules o
+            // manage_schedules de forma explicita (roles administrativos).
             $hidefrom = 0;
             $hidefromcfg = trim((string)get_config('local_grupomakro_core', 'schedule_hide_from'));
-            if (!$isadmin && preg_match('/^\d{4}-\d{2}-\d{2}$/', $hidefromcfg)) {
+            if ($hidefromcfg !== '' && $currentuserid > 0 && !is_siteadmin($currentuserid)) {
+                global $DB;
+                $syscontext = \context_system::instance();
+                $staff = $DB->record_exists_sql(
+                    "SELECT 1
+                       FROM {role_assignments} ra
+                       JOIN {role_capabilities} rc ON rc.roleid = ra.roleid AND rc.contextid = ra.contextid
+                      WHERE ra.userid = :uid AND ra.contextid = :ctx AND rc.permission = 1
+                        AND rc.capability IN (:cview, :cmanage)",
+                    ['uid' => $currentuserid, 'ctx' => $syscontext->id,
+                     'cview' => 'local/grupomakro_core:view_schedules',
+                     'cmanage' => 'local/grupomakro_core:manage_schedules']);
+            } else {
+                $staff = true;
+            }
+            if (!$staff && preg_match('/^\d{4}-\d{2}-\d{2}$/', $hidefromcfg)) {
                 $hidefrom = (int)make_timestamp((int)substr($hidefromcfg, 0, 4),
                     (int)substr($hidefromcfg, 5, 2), (int)substr($hidefromcfg, 8, 2));
             }
