@@ -950,6 +950,7 @@ window.Vue.component('classschedule', {
             classStudentsHeaders: [
                 { text: 'Nombre', value: 'name' },
                 { text: 'Cédula', value: 'documentnumber', width: '140px' },
+                { text: 'Carrera', value: 'career' },
                 { text: 'Estado académico', value: 'academicstatus', width: '150px' },
                 { text: 'Fallas', value: 'absences', align: 'center', width: '80px' },
                 { text: 'Estado financiero', value: 'financial_status', width: '170px' },
@@ -1059,6 +1060,11 @@ window.Vue.component('classschedule', {
                     userid: u.userid,
                     name: u.nameuser || '--',
                     documentnumber: u.documentnumber || '--',
+                    // Carrera(s) del estudiante; el servicio ya las limita al plan
+                    // de la clase cuando el estudiante lo tiene.
+                    career: [...new Set((Array.isArray(u.careers) ? u.careers : Object.values(u.careers || {}))
+                        .map(c => (c && c.career ? String(c.career).trim() : ''))
+                        .filter(Boolean))].join(', ') || '--',
                     academicstatus: u.academicstatus || '',
                     absences: Number(u.absences) || 0,
                     financial_status: u.financial_status || 'none',

@@ -222,7 +222,7 @@ echo <<<EOT
   </style>
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=cpfix6'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.cpfix.js?v=cpfix6'));
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js?v=cpfix6'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=cpfix7'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/ClassSchedule.cpfix.js?v=cpfix7'));
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/dialogconfirm.js?v=cpfix7'));
 echo $OUTPUT->footer();
