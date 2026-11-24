@@ -59,7 +59,9 @@ if ($count < 1 || $count > 50) {
    ============================================================ */
 $class = $DB->get_record('gmk_class', ['id' => $classid], '*', MUST_EXIST);
 $class->course = get_course($class->corecourseid);
-$class->courseid = $class->corecourseid;
+// No tocar $class->courseid: en gmk_class es la materia del plan (local_learning_courses.id),
+// no el curso de Moodle. Antes se igualaba a corecourseid y el update_record final lo
+// guardaba asi (65 clases corregidas el 2026-11-24).
 
 if (empty($class->attendancemoduleid) || empty($class->coursesectionid) || empty($class->groupid)) {
     fwrite(STDERR, "ERROR: clase {$classid} sin attendance/section/group\n"); exit(3);
@@ -320,8 +322,13 @@ foreach ($scheduleRows as $s) {
     $DB->update_record('gmk_class_schedules', $s);
 }
 
-$class->timemodified = time();
-$DB->update_record('gmk_class', $class);
+// Solo los campos que cambian: $class lleva datos de trabajo (course, etc.).
+$DB->update_record('gmk_class', (object)[
+    'id'           => $class->id,
+    'bbbmoduleids' => $class->bbbmoduleids,
+    'enddate'      => $class->enddate,
+    'timemodified' => time(),
+]);
 
 // (d) Cache del curso
 rebuild_course_cache((int)$class->corecourseid, true);
