@@ -2483,5 +2483,22 @@
       </INDEXES>
     </TABLE>
 
+    <TABLE NAME="gmk_odoo_profile_sync" COMMENT="Perfil del estudiante Moodle -> Odoo: ultima foto conocida de los campos que viajan y resultado del ultimo envio">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="snapshot" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON con los valores de los campos sincronizados"/>
+        <FIELD NAME="laststatus" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="lastsync" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="userid_uix" UNIQUE="true" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+
   </TABLES>
 </XMLDB>

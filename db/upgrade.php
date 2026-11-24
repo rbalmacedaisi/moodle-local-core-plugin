@@ -5106,5 +5106,32 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001132, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001134) {
+        // Perfil del estudiante editado en Moodle -> Odoo: foto inicial de los
+        // campos que viajan, para enviar solo lo que cambie desde ahora.
+        $t = new xmldb_table('gmk_odoo_profile_sync');
+        $t->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $t->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('snapshot', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $t->add_field('laststatus', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, '');
+        $t->add_field('lastsync', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $t->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $t->add_index('userid_uix', XMLDB_INDEX_UNIQUE, ['userid']);
+        if (!$dbman->table_exists($t)) {
+            $dbman->create_table($t);
+        }
+        $students = $DB->get_fieldset_sql("SELECT d.userid FROM {user_info_data} d
+                JOIN {user_info_field} f ON f.id = d.fieldid JOIN {user} u ON u.id = d.userid AND u.deleted = 0
+               WHERE f.shortname = 'usertype' AND d.data = 'Estudiante'");
+        foreach ($students as $uid) {
+            if (!$DB->record_exists('gmk_odoo_profile_sync', ['userid' => $uid])) {
+                \local_grupomakro_core\local\odoo_profile_sync::save_snapshot((int)$uid,
+                    \local_grupomakro_core\local\odoo_profile_sync::current_values((int)$uid));
+            }
+        }
+        upgrade_plugin_savepoint(true, 20261001134, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

@@ -26,6 +26,16 @@ defined('MOODLE_INTERNAL') || die();
 
 $observers = array(
 
+    // Perfil del estudiante editado en Moodle -> Odoo (20261001134).
+    array(
+        'eventname' => '\core\event\user_updated',
+        'callback' => '\local_grupomakro_core\local\odoo_profile_sync::on_user_updated',
+    ),
+    array(
+        'eventname' => '\core\event\user_created',
+        'callback' => '\local_grupomakro_core\local\odoo_profile_sync::on_user_created',
+    ),
+
     array(
         'eventname' => 'core\event\course_completed',
         'callback' => 'local_grupomakro_core_observer::course_completed',
