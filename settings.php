@@ -926,6 +926,14 @@ if ($hassiteconfig) {
             PARAM_FLOAT
         ));
 
+        $settingspage->add(new admin_setting_configtext(
+            'local_grupomakro_core/revalida_fixed_date',
+            'Fecha fija de reválidas',
+            'AAAA-MM-DD. Mientras sea una fecha futura, toda reválida que se programe se aplica ese día, a la hora de inicio de su clase y con sala virtual. Vacío = una semana después de terminar la clase.',
+            '',
+            PARAM_TEXT
+        ));
+
         $settingspage->add(new admin_setting_configpasswordunmask(
             'local_grupomakro_core/revalida_webhook_token',
             'Token webhook de pago de reválidas',

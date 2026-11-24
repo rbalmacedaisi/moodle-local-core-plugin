@@ -1234,16 +1234,25 @@ class revalida_manager {
             $targetday = date('l'); // Last-resort fallback.
         }
 
-        // Base = one week after the class ends (or after now if the class has no end / is future).
-        $base = !empty($class->enddate) ? (int)$class->enddate : time();
-        $base = max($base, time());
-        $cursor = new \DateTime(date('Y-m-d', $base));
-        $cursor->modify('+7 day');
-        // Advance to the next matching weekday.
-        $guard = 0;
-        while ($cursor->format('l') !== $targetday && $guard < 14) {
-            $cursor->modify('+1 day');
-            $guard++;
+        // Fixed revalidation day set by the academic department (Administracion >
+        // revalida_fixed_date, YYYY-MM-DD): every revalidation scheduled while it is
+        // in the future takes place that day, at the class's own start time so each
+        // jornada keeps its hour. Empty or past = the usual "one week after the class".
+        $fixed = trim((string)get_config('local_grupomakro_core', 'revalida_fixed_date'));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $fixed) && $fixed >= date('Y-m-d')) {
+            $cursor = new \DateTime($fixed);
+        } else {
+            // Base = one week after the class ends (or after now if the class has no end / is future).
+            $base = !empty($class->enddate) ? (int)$class->enddate : time();
+            $base = max($base, time());
+            $cursor = new \DateTime(date('Y-m-d', $base));
+            $cursor->modify('+7 day');
+            // Advance to the next matching weekday.
+            $guard = 0;
+            while ($cursor->format('l') !== $targetday && $guard < 14) {
+                $cursor->modify('+1 day');
+                $guard++;
+            }
         }
 
         $datestr = $cursor->format('Y-m-d');
