@@ -1392,6 +1392,7 @@ $string['grupomakro_core:view_classmanagement'] = 'Ver la gestión de clases';
 $string['grupomakro_core:view_credit_report'] = 'Ver el informe de créditos';
 $string['grupomakro_core:view_failed_subjects_report'] = 'Ver el informe de asignaturas reprobadas';
 $string['grupomakro_core:view_financial_health'] = 'Ver la salud financiera';
+$string['grupomakro_core:view_student_financial_status'] = 'Ver el estado financiero de cada estudiante';
 $string['grupomakro_core:view_financial_planning'] = 'Ver el análisis financiero docente';
 $string['grupomakro_core:view_grade_report'] = 'Ver el informe de calificaciones';
 $string['grupomakro_core:view_log'] = 'Ver el registro del sistema';

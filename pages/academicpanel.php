@@ -124,6 +124,11 @@ $isAdmin = (is_siteadmin()
 // isSuperAdmin se queda en is_siteadmin(): solo destapa las sincronizaciones
 // masivas (syncFinancialBulk, syncMigratedPeriods), que son otra cosa.
 $isSuperAdmin = is_siteadmin() ? 'true' : 'false';
+// Estado financiero de cada estudiante (columna y filtro): quien gestiona el estado
+// academico, o quien solo necesita consultarlo (p. ej. Bienestar).
+$canViewFinancial = ($isAdmin === 'true'
+    || has_capability('local/grupomakro_core:view_student_financial_status', context_system::instance()))
+    ? 'true' : 'false';
 
 echo $OUTPUT->header();
 
@@ -232,6 +237,7 @@ echo <<<EOT
     var themeToken = $themeToken || null;
     var isAdmin = $isAdmin;
     var isSuperAdmin = $isSuperAdmin;
+    var canViewFinancial = $canViewFinancial;
     var schedulePdfLogoUrl = $schedulePdfLogoUrl;
   </script>
 

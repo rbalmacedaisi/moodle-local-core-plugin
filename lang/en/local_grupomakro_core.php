@@ -1386,6 +1386,7 @@ $string['grupomakro_core:view_classmanagement'] = 'View class management';
 $string['grupomakro_core:view_credit_report'] = 'View the credit report';
 $string['grupomakro_core:view_failed_subjects_report'] = 'View the failed subjects report';
 $string['grupomakro_core:view_financial_health'] = 'View financial health';
+$string['grupomakro_core:view_student_financial_status'] = 'View the financial status of each student';
 $string['grupomakro_core:view_financial_planning'] = 'View teacher financial planning';
 $string['grupomakro_core:view_grade_report'] = 'View the grade report';
 $string['grupomakro_core:view_log'] = 'View the system log';

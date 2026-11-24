@@ -242,7 +242,7 @@ template: `
                                         clearable
                                     ></v-select>
                                     <v-select
-                                        v-if="isAdmin"
+                                        v-if="canViewFinancial"
                                         v-model="filters.financialStatus"
                                         :items="['al_dia', 'mora', 'becado', 'convenio', 'sin_contrato_o_usuario']"
                                         label="Estado Financiero"
@@ -757,6 +757,7 @@ template: `
         lang() { return window.strings || {} },
         token() { return window.userToken; },
         isAdmin() { return window.isAdmin || false; },
+        canViewFinancial() { return window.canViewFinancial || window.isAdmin || false; },
         isSuperAdmin() { return window.isSuperAdmin || false; },
         dataPruningUrl() { return window.location.origin + '/local/grupomakro_core/pages/fix_student_setup.php'; },
         countsUpdatedAtLabel() {
@@ -811,7 +812,7 @@ template: `
                 { text: 'Estado Académico', value: 'academicstatus', sortable: false, width: '170px' },
             ];
 
-            if (this.isAdmin) {
+            if (this.canViewFinancial) {
                 headers.push({
                     text: 'Estado Financiero',
                     value: 'financial_status',

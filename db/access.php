@@ -358,6 +358,12 @@ $capabilities = array(
         'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // Ver el estado financiero de cada estudiante (columna y filtro de la tabla de
+    // estudiantes del panel academico) sin poder cambiar su estado academico.
+    'local/grupomakro_core:view_student_financial_status' => array(
+        'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
     'local/grupomakro_core:view_financial_health' => array(
         'captype' => 'read', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
