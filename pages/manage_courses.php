@@ -484,6 +484,8 @@ window.gmkSesskey    = ' . json_encode(sesskey()) . ';
 </script>';
 
 // Load External JS for Modals
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/manage_courses.js'));
+// ?v= busts the browser cache on every deploy (plain JS file, not AMD).
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/manage_courses.js',
+    ['v' => (int)@filemtime($CFG->dirroot . '/local/grupomakro_core/js/manage_courses.js')]));
 
 echo $OUTPUT->footer();

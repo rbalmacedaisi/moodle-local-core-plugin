@@ -392,11 +392,94 @@ function ($, ModalFactory, ModalEvents) {
                          'Se marcarán automáticamente como inasistencia.\n\n';
         }
 
-        if (!confirm(pendingMsg + '¿Cerrar esta clase y calcular las calificaciones finales?\n' +
-                     'Esta acción bloqueará el libro de calificaciones.')) {
-            return;
-        }
+        // Pre-flight: what is still ungraded, per student. The close never blocks
+        // on it (a missing grade counts as 0), so this is the moment to show it.
+        ajaxGet('local_grupomakro_get_class_close_pending', { classId: classId })
+            .done(function (r) {
+                var p = (r && r.data) ? r.data : null;
+                if (p && p.students_total === 0) {
+                    if (confirm('Esta clase no tiene estudiantes por calificar ' +
+                                '(ninguno inscrito o todos ya tienen nota final).\n\n' +
+                                '¿Cerrarla de todos modos, sin calcular notas?')) {
+                        runClose(classId, true);
+                    }
+                    return;
+                }
+                if (p && p.students && p.students.length) {
+                    showClosePending(classId, p, pendingMsg);
+                    return;
+                }
+                if (confirm(pendingMsg + '¿Cerrar esta clase y calcular las calificaciones finales?\n' +
+                            'Esta acción bloqueará el libro de calificaciones.')) {
+                    runClose(classId, false);
+                }
+            })
+            .fail(function () {
+                // The check is advisory: if it fails, fall back to the plain confirm.
+                if (confirm(pendingMsg + '¿Cerrar esta clase y calcular las calificaciones finales?\n' +
+                            'Esta acción bloqueará el libro de calificaciones.')) {
+                    runClose(classId, false);
+                }
+            });
+    }
 
+    // Students with ungraded activities, each linking to the grading screen
+    // already filtered to that student. Links open in a new tab so this list
+    // stays open; "Volver a revisar" reloads it after grading.
+    function showClosePending(classId, p, pendingMsg) {
+        var kindStyle = {
+            submitted:   'background:#fff3cd;color:#856404;',
+            quiz_manual: 'background:#fff3cd;color:#856404;',
+            missing:     'background:#e2e3e5;color:#383d41;'
+        };
+        var rows = '';
+        p.students.forEach(function (s) {
+            var items = s.items.map(function (it) {
+                return '<li style="margin:4px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+                    '<a href="' + gmkEsc(it.url) + '" target="_blank" rel="noopener" style="font-weight:500;">' +
+                    '<i class="mdi mdi-open-in-new"></i> ' + gmkEsc(it.name) + '</a>' +
+                    '<span style="font-size:11px;padding:1px 8px;border-radius:10px;' +
+                    (kindStyle[it.kind] || kindStyle.missing) + '">' + gmkEsc(it.label) + '</span></li>';
+            }).join('');
+            rows += '<div style="border:1px solid #e5e5e5;border-radius:8px;padding:10px 12px;margin-bottom:8px;">' +
+                '<div style="font-weight:600;">' + gmkEsc(s.name) +
+                (s.action_needed > 0
+                    ? ' <span style="font-size:11px;color:#856404;">(' + s.action_needed + ' por calificar)</span>'
+                    : '') + '</div>' +
+                '<ul style="list-style:none;padding:0;margin:6px 0 0;">' + items + '</ul></div>';
+        });
+        var head =
+            '<div style="background:' + (p.action_needed > 0 ? '#fff3cd' : '#e9ecef') +
+            ';padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:13px;">' +
+            (p.action_needed > 0
+                ? '<strong>' + p.action_needed + ' estudiante(s)</strong> tienen entregas sin calificar. '
+                : 'No hay entregas esperando calificación. ') +
+            'Las actividades <em>sin nota</em> contarán como 0 al cerrar. ' +
+            'Cada enlace abre la actividad filtrada en ese estudiante, en otra pestaña.' +
+            (pendingMsg ? '<br><br>' + gmkEsc(pendingMsg).replace(/\n/g, '<br>') : '') +
+            '</div>';
+        var btns =
+            '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">' +
+            '<button class="btn btn-sm btn-outline-secondary gmk-pend-refresh">' +
+            '<i class="mdi mdi-refresh"></i> Volver a revisar</button>' +
+            '<button class="btn btn-sm btn-light gmk-pend-cancel">Cancelar</button>' +
+            '<button class="btn btn-sm btn-danger gmk-pend-close">' +
+            '<i class="mdi mdi-lock"></i> Cerrar de todos modos</button></div>';
+        showSubModal('Notas pendientes antes de cerrar', head + rows + btns);
+        var ov = $('#gmk-sub-modal-overlay');
+        ov.on('click', '.gmk-pend-cancel', function () { ov.remove(); });
+        ov.on('click', '.gmk-pend-refresh', function () { ov.remove(); closeClass(classId); });
+        ov.on('click', '.gmk-pend-close', function () {
+            if (!confirm('¿Cerrar la clase con estas notas pendientes?\n' +
+                         'Lo que no tenga nota contará como 0 y el libro de calificaciones se bloqueará.')) {
+                return;
+            }
+            ov.remove();
+            runClose(classId, false);
+        });
+    }
+
+    function runClose(classId, allowEmpty) {
         // Show progress modal
         var modal = $(gmkCloseModalHtml());
         $('body').append(modal);
@@ -509,7 +592,7 @@ function ($, ModalFactory, ModalEvents) {
             });
         }
 
-        ajaxGet('local_grupomakro_close_class_period', { classId: classId })
+        ajaxGet('local_grupomakro_close_class_period', { classId: classId, allowEmpty: allowEmpty ? 1 : 0 })
             .done(function (r) { applyResult(r); })
             .fail(function (xhr) {
                 applyResult({ data: {

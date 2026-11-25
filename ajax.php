@@ -3011,8 +3011,18 @@ try {
             require_sesskey();
             require_capability('local/grupomakro_core:manage_courses', $context);
             $classid = required_param('classId', PARAM_INT);
-            $result  = gmk_close_class_with_grade_recalc($classid);
+            // allowEmpty=1 only after the operator confirmed closing a class with
+            // no students left to grade (see manage_courses.js).
+            $allowempty = (bool)optional_param('allowEmpty', 0, PARAM_INT);
+            $result  = gmk_close_class_with_grade_recalc($classid, $allowempty);
             $response = ['status' => 'success', 'data' => $result];
+            break;
+
+        case 'local_grupomakro_get_class_close_pending':
+            require_sesskey();
+            require_capability('local/grupomakro_core:manage_courses', $context);
+            $classid = required_param('classId', PARAM_INT);
+            $response = ['status' => 'success', 'data' => gmk_get_class_close_pending($classid)];
             break;
 
         case 'local_grupomakro_fix_attendance_setunmarked':

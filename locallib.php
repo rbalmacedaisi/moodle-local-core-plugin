@@ -10419,6 +10419,178 @@ function gmk_get_student_class_grade(int $classId, int $userId): ?float {
 }
 
 /**
+ * Pre-close check: what is still ungraded for each student the close would process.
+ *
+ * The close itself never blocks on missing grades (a missing grade counts as 0), so
+ * this is what lets the operator see, before closing, which activities still need a
+ * grade. Same student scope as gmk_close_class_with_grade_recalc (progre rows of the
+ * class not yet Aprobada/Reprobada) and same items as gmk_batch_weighted_grades.
+ *
+ * Each pending item carries a kind:
+ *   - 'submitted'  the student handed it in and it has no grade (or was resubmitted
+ *                  after the last grade): the teacher must grade it.
+ *   - 'quiz_manual' a finished quiz attempt waiting for manual grading.
+ *   - 'missing'    no grade and nothing handed in: it will count as 0.
+ * and a url that opens the grading screen already filtered to that student.
+ *
+ * @return array ['students_total' => int, 'action_needed' => int, 'students' => [...]]
+ */
+function gmk_get_class_close_pending(int $classId): array {
+    global $DB;
+    $out = ['students_total' => 0, 'action_needed' => 0, 'students' => []];
+    $class = $DB->get_record('gmk_class', ['id' => $classId], 'id, corecourseid, gradecategoryid');
+    if (!$class) {
+        return $out;
+    }
+    $students = $DB->get_records_sql(
+        "SELECT gcp.userid, u.firstname, u.lastname
+           FROM {gmk_course_progre} gcp
+           JOIN {user} u ON u.id = gcp.userid AND u.deleted = 0
+          WHERE gcp.classid = :classid AND gcp.status NOT IN (:approved, :failed)
+       ORDER BY u.lastname, u.firstname",
+        ['classid' => $classId, 'approved' => COURSE_APPROVED, 'failed' => COURSE_FAILED]
+    );
+    $out['students_total'] = count($students);
+    if (!$students || empty($class->gradecategoryid)) {
+        return $out;
+    }
+    $items = $DB->get_records_sql(
+        "SELECT gi.id, gi.itemname, gi.itemtype, gi.itemmodule, gi.iteminstance, cm.id AS cmid
+           FROM {grade_items} gi
+      LEFT JOIN {modules} m ON m.name = gi.itemmodule
+      LEFT JOIN {course_modules} cm ON cm.module = m.id AND cm.instance = gi.iteminstance
+                                   AND cm.course = gi.courseid
+          WHERE gi.categoryid = :cat AND gi.itemtype IN ('mod', 'manual')
+            AND gi.grademax > 0 AND gi.itemnumber = 0
+       ORDER BY gi.sortorder",
+        ['cat' => (int)$class->gradecategoryid]
+    );
+    if (!$items) {
+        return $out;
+    }
+    $userids = array_keys($students);
+    list($uin, $uparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'pu');
+    list($iin, $iparams) = $DB->get_in_or_equal(array_keys($items), SQL_PARAMS_NAMED, 'pi');
+    $graded = [];
+    foreach ($DB->get_records_sql(
+        "SELECT gg.id, gg.userid, gg.itemid, gg.finalgrade, gg.excluded
+           FROM {grade_grades} gg WHERE gg.userid $uin AND gg.itemid $iin",
+        $uparams + $iparams) as $g) {
+        if ($g->finalgrade !== null || !empty($g->excluded)) {
+            $graded[$g->userid][$g->itemid] = true;
+        }
+    }
+
+    // Assignments: latest submission per student, and whether it still needs grading.
+    $assignsub = [];
+    $assignids = [];
+    foreach ($items as $it) {
+        if ($it->itemmodule === 'assign') {
+            $assignids[] = (int)$it->iteminstance;
+        }
+    }
+    if ($assignids) {
+        list($ain, $aparams) = $DB->get_in_or_equal($assignids, SQL_PARAMS_NAMED, 'pa');
+        list($uin2, $uparams2) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'pv');
+        foreach ($DB->get_records_sql(
+            "SELECT s.id, s.assignment, s.userid, s.timemodified,
+                    (SELECT MAX(ag.timemodified) FROM {assign_grades} ag
+                      WHERE ag.assignment = s.assignment AND ag.userid = s.userid
+                        AND ag.grade IS NOT NULL AND ag.grade >= 0) AS gradedat
+               FROM {assign_submission} s
+              WHERE s.assignment $ain AND s.userid $uin2 AND s.latest = 1 AND s.status = 'submitted'",
+            $aparams + $uparams2) as $s) {
+            if (empty($s->gradedat) || (int)$s->gradedat < (int)$s->timemodified) {
+                $assignsub[$s->assignment][$s->userid] = empty($s->gradedat) ? 'new' : 'resubmitted';
+            }
+        }
+    }
+    // Quizzes: finished attempts with no total yet (manual grading pending).
+    $quizmanual = [];
+    $quizids = [];
+    foreach ($items as $it) {
+        if ($it->itemmodule === 'quiz') {
+            $quizids[] = (int)$it->iteminstance;
+        }
+    }
+    if ($quizids) {
+        list($qin, $qparams) = $DB->get_in_or_equal($quizids, SQL_PARAMS_NAMED, 'pq');
+        list($uin3, $uparams3) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'pw');
+        foreach ($DB->get_records_sql(
+            "SELECT qa.id, qa.quiz, qa.userid FROM {quiz_attempts} qa
+              WHERE qa.quiz $qin AND qa.userid $uin3 AND qa.state = 'finished' AND qa.sumgrades IS NULL",
+            $qparams + $uparams3) as $a) {
+            $quizmanual[$a->quiz][$a->userid] = true;
+        }
+    }
+
+    $courseid = (int)$class->corecourseid;
+    foreach ($students as $uid => $stu) {
+        $pending = [];
+        foreach ($items as $it) {
+            $cmid = (int)$it->cmid;
+            $name = $it->itemname !== null && $it->itemname !== '' ? $it->itemname : 'Actividad';
+            // Singleview of the student: every item of the course, editable in one page.
+            $userview = (new moodle_url('/grade/report/singleview/index.php',
+                ['id' => $courseid, 'item' => 'user', 'itemid' => $uid]))->out(false);
+            if ($it->itemmodule === 'assign' && isset($assignsub[$it->iteminstance][$uid])) {
+                // Submitted work counts even if the gradebook already holds an older grade.
+                $pending[] = ['name' => $name, 'module' => 'assign',
+                    'kind' => 'submitted',
+                    'label' => $assignsub[$it->iteminstance][$uid] === 'resubmitted'
+                        ? 'Reentregada después de calificar' : 'Entregada sin calificar',
+                    'url' => $cmid ? (new moodle_url('/mod/assign/view.php',
+                        ['id' => $cmid, 'action' => 'grader', 'userid' => $uid]))->out(false) : $userview];
+                continue;
+            }
+            if (!empty($graded[$uid][$it->id])) {
+                continue;
+            }
+            if ($it->itemmodule === 'quiz' && isset($quizmanual[$it->iteminstance][$uid])) {
+                $pending[] = ['name' => $name, 'module' => 'quiz', 'kind' => 'quiz_manual',
+                    'label' => 'Intento por calificar manualmente',
+                    'url' => $cmid ? (new moodle_url('/mod/quiz/report.php',
+                        ['id' => $cmid, 'mode' => 'grading']))->out(false) : $userview];
+                continue;
+            }
+            if ($it->itemmodule === 'attendance') {
+                // Not graded by hand: the grade comes from the attendance taken.
+                $pending[] = ['name' => $name, 'module' => 'attendance', 'kind' => 'missing',
+                    'label' => 'Sin asistencia registrada (contará como 0)',
+                    'url' => $cmid ? (new moodle_url('/mod/attendance/view.php',
+                        ['id' => $cmid, 'studentid' => $uid, 'view' => 5]))->out(false) : $userview];
+                continue;
+            }
+            $url = $userview;
+            if ($it->itemmodule === 'assign' && $cmid) {
+                $url = (new moodle_url('/mod/assign/view.php',
+                    ['id' => $cmid, 'action' => 'grader', 'userid' => $uid]))->out(false);
+            }
+            $pending[] = ['name' => $name, 'module' => (string)($it->itemmodule ?: 'manual'),
+                'kind' => 'missing', 'label' => 'Sin nota (contará como 0)', 'url' => $url];
+        }
+        if (!$pending) {
+            continue;
+        }
+        $needs = count(array_filter($pending, function($p) { return $p['kind'] !== 'missing'; }));
+        if ($needs) {
+            $out['action_needed']++;
+        }
+        $out['students'][] = [
+            'userid' => (int)$uid,
+            'name' => trim($stu->firstname . ' ' . $stu->lastname),
+            'action_needed' => $needs,
+            'items' => $pending,
+        ];
+    }
+    // Students that need the teacher's action first.
+    usort($out['students'], function($a, $b) {
+        return ($b['action_needed'] <=> $a['action_needed']) ?: strcmp($a['name'], $b['name']);
+    });
+    return $out;
+}
+
+/**
  * Canonical business-rule classifier for a student's final course status.
  * Identical to the logic in progress_manager::close_class_grades_and_open_revalids().
  * MUST be kept in sync with that function if institutional thresholds change.
@@ -10626,7 +10798,7 @@ function gmk_get_class_dashboard_stats(int $classId): array {
  *
  * @return array ['ok' => bool, 'error' => string|null, 'summary' => array]
  */
-function gmk_close_class_with_grade_recalc(int $classId): array {
+function gmk_close_class_with_grade_recalc(int $classId, bool $allowEmpty = false): array {
     global $DB, $CFG, $USER;
     require_once($CFG->libdir . '/gradelib.php');
     if (!class_exists('local_grupomakro_progress_manager')) {
@@ -10690,9 +10862,15 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_move
             'failed'   => COURSE_FAILED,
         ]
     );
-    if (empty($students)) {
-        return ['ok' => false, 'error' => 'No hay estudiantes pendientes de calificación en esta clase.'];
+    // A class with nobody left to grade (no students, or all already Aprobada/
+    // Reprobada) only closes from the manual button, after the operator confirms
+    // it: $allowEmpty. The expired-class task and the period close leave it open
+    // for review, as before.
+    if (empty($students) && !$allowEmpty) {
+        return ['ok' => false, 'empty' => true,
+                'error' => 'Esta clase no tiene estudiantes por calificar: ninguno inscrito o todos ya tienen nota final.'];
     }
+    $students = $students ?: [];
 
     // ── 5. Compute grades and build the update plan ──────────────────────────
     // Teacher-driven revalidations: the close is DEFINITIVE and no longer emits
@@ -10807,7 +10985,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_move
             'failed'     => $summary['failed'],
             'revalid'    => $summary['revalid'],
             'no_grade'   => $summary['no_grade'],
-            'notes'      => null,
+            'notes'      => $students ? null : 'Cerrada sin estudiantes por calificar.',
         ]);
 
         $transaction->allow_commit();
@@ -10856,7 +11034,7 @@ require_once($CFG->dirroot . '/local/grupomakro_core/classes/local/academic_move
         }
     }
 
-    return ['ok' => true, 'error' => null, 'summary' => $summary];
+    return ['ok' => true, 'error' => null, 'summary' => $summary, 'empty' => empty($students)];
 }
 
 /**
