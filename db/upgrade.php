@@ -5133,5 +5133,73 @@ if ($oldversion < 20261001093) {
         upgrade_plugin_savepoint(true, 20261001134, 'local', 'grupomakro_core');
     }
 
+    if ($oldversion < 20261001135) {
+        // Retiros: flujo de gestion (Bienestar: retencion, seguimiento y
+        // escalamientos) y retiro formal (Secretaria Academica y Registros).
+        $t = new xmldb_table('gmk_wdr');
+        $status = new xmldb_field('status', XMLDB_TYPE_CHAR, '40', null, XMLDB_NOTNULL, null, 'solicitada');
+        $idx = new xmldb_index('status_idx', XMLDB_INDEX_NOTUNIQUE, ['status']);
+        if ($dbman->index_exists($t, $idx)) {
+            $dbman->drop_index($t, $idx);
+        }
+        $dbman->change_field_precision($t, $status);
+        $dbman->add_index($t, $idx);
+        $fields = [
+            new xmldb_field('channel', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'portal'),
+            new xmldb_field('created_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('assigned_to', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('next_followup', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('last_activity_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('payment_instructed_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('formal_requested_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('formal_requested_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('student_signed_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('student_signed_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('closed_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('closed_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0'),
+            new xmldb_field('moodle_actions', XMLDB_TYPE_TEXT, null, null, null, null, null),
+        ];
+        foreach ($fields as $f) {
+            if (!$dbman->field_exists($t, $f)) {
+                $dbman->add_field($t, $f);
+            }
+        }
+        $l = new xmldb_table('gmk_wdr_log');
+        $l->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $l->add_field('wdrid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_field('type', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, 'nota');
+        $l->add_field('body', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $l->add_field('area', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, '');
+        $l->add_field('assignee', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_field('due', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_field('resolved_at', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_field('resolved_by', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_field('response', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $l->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $l->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $l->add_index('wdr_time_idx', XMLDB_INDEX_NOTUNIQUE, ['wdrid', 'timecreated']);
+        $l->add_index('assignee_open_idx', XMLDB_INDEX_NOTUNIQUE, ['assignee', 'resolved_at']);
+        if (!$dbman->table_exists($l)) {
+            $dbman->create_table($l);
+        }
+        // Las solicitudes en estados intermedios del RET-01 anterior pasan a la
+        // etapa de retiro formal (sus recibidos se conservan en el checklist).
+        $DB->execute("UPDATE {gmk_wdr} SET status = 'retiro_formal'
+                       WHERE status IN ('pendiente_firma_presencial','firmada_digital',
+                                        'recibida_direccion_academica','recibida_direccion_administrativa')");
+        $DB->execute("UPDATE {gmk_wdr} SET last_activity_at = timemodified WHERE last_activity_at = 0");
+        update_capabilities('local_grupomakro_core');
+        $syscontext = context_system::instance();
+        foreach (['gmk_secretaria_academica', 'gmk_registros_academicos'] as $sn) {
+            $roleid = $DB->get_field('role', 'id', ['shortname' => $sn]);
+            if ($roleid) {
+                assign_capability('local/grupomakro_core:process_wdr_formal', CAP_ALLOW, $roleid, $syscontext->id, true);
+            }
+        }
+        $syscontext->mark_dirty();
+        upgrade_plugin_savepoint(true, 20261001135, 'local', 'grupomakro_core');
+    }
+
     return true;
 }

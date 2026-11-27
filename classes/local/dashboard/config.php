@@ -64,10 +64,16 @@ class config {
      * o "user:<id>".
      */
     const SLA_DEFAULTS = [
-        'wdr.receive'        => ['kind' => 'h', 'warn' => 12, 'due' => 16, 'crit' => 32, 'sup' => 'gmk_director_academico',
-            'label' => 'Retiros: solicitud sin recibir'],
+        'wdr.receive'        => ['kind' => 'h', 'warn' => 4, 'due' => 8, 'crit' => 16, 'sup' => 'gmk_director_academico',
+            'label' => 'Retiros: solicitud nueva sin tomar (Bienestar)'],
+        'wdr.followup'       => ['kind' => 'before', 'warn' => 1, 'due' => 0, 'crit' => -1, 'sup' => 'gmk_director_academico',
+            'label' => 'Retiros: seguimiento programado'],
+        'wdr.manage'         => ['kind' => 'd', 'warn' => 2, 'due' => 3, 'crit' => 7, 'sup' => 'gmk_director_academico',
+            'label' => 'Retiros: en gestión sin seguimiento programado'],
+        'wdr.escalation'     => ['kind' => 'h', 'warn' => 8, 'due' => 16, 'crit' => 40, 'sup' => 'gmk_director_academico',
+            'label' => 'Retiros: caso escalado sin respuesta'],
         'wdr.process'        => ['kind' => 'h', 'warn' => 18, 'due' => 24, 'crit' => 48, 'sup' => 'gmk_director_academico',
-            'label' => 'Retiros: recibido sin procesar'],
+            'label' => 'Retiros: retiro formal pendiente (Secretaría / Registros)'],
         'letters.elaborar'   => ['kind' => 'h', 'warn' => 12, 'due' => 16, 'crit' => 32, 'sup' => 'gmk_secretaria_academica',
             'label' => 'Cartas: por elaborar (solo si la bandeja de cartas no trae su ANS)'],
         'letters.atascada'   => ['kind' => 'h', 'warn' => 3, 'due' => 4, 'crit' => 8, 'sup' => 'gmk_soporte_ti',

@@ -43,7 +43,9 @@ class admin_upload_scanned extends external_api {
 
         global $DB;
         $DB->set_field('gmk_wdr', 'scanned_pdf_path', $path, ['id' => (int)$params['id']]);
-        $DB->set_field('gmk_wdr', 'status', 'firmada_digital', ['id' => (int)$params['id']]);
+        // En el flujo de gestion (20261001135) la copia escaneada es un punto del
+        // checklist del retiro formal: no cambia la etapa.
+        \local_grupomakro_core\local\wdr_flow::after_scan_upload((int)$params['id'], (int)$GLOBALS['USER']->id);
 
         return [
             'id'   => (int)$params['id'],

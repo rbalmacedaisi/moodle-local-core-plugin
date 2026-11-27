@@ -390,6 +390,12 @@ $capabilities = array(
         'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
         'archetypes' => array('manager' => CAP_ALLOW),
     ),
+    // Etapa final del retiro: checklist RET-01 y ejecucion del retiro formal
+    // (Odoo + Moodle). Secretaria Academica y Registros Academicos.
+    'local/grupomakro_core:process_wdr_formal' => array(
+        'captype' => 'write', 'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array('manager' => CAP_ALLOW),
+    ),
     // Mesa de ayuda con tickets (20261001120). Ver docs/planning/PLAN_TICKETS_SOPORTE.md §3.
     // support_create: cualquier usuario autenticado abre tickets. El resto se
     // reparte por rol en db/upgradelib.php (assign_capabilities_to_internal_roles).

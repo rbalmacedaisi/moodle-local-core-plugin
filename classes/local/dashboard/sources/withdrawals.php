@@ -15,7 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Fuente: solicitudes de retiro RET-01 (gmk_wdr) sin recibir o sin procesar.
+ * Fuente: retiros en manos de Bienestar (20261001135).
+ *   - Nuevas sin tomar (cola del rol).
+ *   - En gestion: seguimiento vencido o caso sin movimiento (del gestor asignado).
  *
  * @package    local_grupomakro_core
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -29,22 +31,12 @@ defined('MOODLE_INTERNAL') || die();
 
 class withdrawals extends source {
 
-    const RECEIVE = [
-        'solicitada' => 'Solicitada',
-        'pendiente_firma_presencial' => 'Pendiente de firma presencial',
-        'firmada_digital' => 'Firmada (falta sello)',
-    ];
-    const PROCESS = [
-        'recibida_direccion_academica' => 'Recibida por Dirección Académica',
-        'recibida_direccion_administrativa' => 'Recibida por Dirección Administrativa',
-    ];
-
     public function key(): string {
         return 'withdrawals';
     }
 
     public function label(): string {
-        return 'Retiros (RET-01)';
+        return 'Retiros: gestión de retención';
     }
 
     public function icon(): string {
@@ -61,18 +53,31 @@ class withdrawals extends source {
 
     public function fetch(int $userid, bool $team, int $now): array {
         global $DB;
-        $labels = self::RECEIVE + self::PROCESS;
-        [$in, $params] = $DB->get_in_or_equal(array_keys($labels), SQL_PARAMS_NAMED, 'wd');
-        $rows = $DB->get_records_select('gmk_wdr', "status $in", $params, 'timecreated ASC',
-            'id, request_number, fullname, program, status, timecreated, received_da_at, received_admin_at', 0, self::MAX_ROWS);
+        $rows = $DB->get_records_select('gmk_wdr', "status IN ('solicitada', 'en_gestion')", null, 'timecreated ASC',
+            'id, request_number, fullname, program, status, channel, assigned_to, next_followup, last_activity_at, timecreated, timemodified',
+            0, self::MAX_ROWS);
         $out = [];
         foreach ($rows as $r) {
-            $process = isset(self::PROCESS[$r->status]);
-            $since = $process ? max((int)$r->received_da_at, (int)$r->received_admin_at) : 0;
-            $out[] = $this->item($process ? 'wdr.process' : 'wdr.receive', (string)$r->request_number,
-                (string)$r->request_number . ' · ' . (string)$r->fullname,
-                $labels[$r->status] . ($r->program ? ' · ' . (string)$r->program : ''),
-                $since > 0 ? $since : (int)$r->timecreated, 0, 0, $this->url());
+            $url = $this->url(['id' => $r->id]);
+            if ($r->status === 'solicitada') {
+                $out[] = $this->item('wdr.receive', (string)$r->request_number,
+                    $r->request_number . ' · ' . $r->fullname,
+                    'Nueva: tomar el caso y contactar al estudiante' . ($r->program ? ' · ' . $r->program : ''),
+                    (int)$r->timecreated, 0, 0, $url);
+                continue;
+            }
+            $owner = (int)$r->assigned_to;
+            if ((int)$r->next_followup > 0) {
+                $out[] = $this->item('wdr.followup', (string)$r->request_number,
+                    $r->request_number . ' · ' . $r->fullname,
+                    'Seguimiento programado para el ' . self::date((int)$r->next_followup, true),
+                    0, (int)$r->next_followup, $owner, $url);
+            } else {
+                $since = (int)($r->last_activity_at ?: $r->timemodified);
+                $out[] = $this->item('wdr.manage', (string)$r->request_number,
+                    $r->request_number . ' · ' . $r->fullname,
+                    'En gestión sin seguimiento programado · última gestión ' . self::date($since), $since, 0, $owner, $url);
+            }
         }
         return $out;
     }

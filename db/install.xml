@@ -1580,7 +1580,7 @@
         <FIELD NAME="payment_option"           TYPE="char" LENGTH="32"  NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="cambio_carrera|transferencia_derechos|no_aplica."/>
         <FIELD NAME="payment_option_detail"    TYPE="char" LENGTH="255" NOTNULL="false" DEFAULT="" SEQUENCE="false" COMMENT="Detalle libre para cambio_carrera / cedula tercero para transferencia_derechos."/>
         <FIELD NAME="observations"             TYPE="text"                NOTNULL="false"                SEQUENCE="false"/>
-        <FIELD NAME="status"                   TYPE="char" LENGTH="32"  NOTNULL="true" DEFAULT="solicitada" SEQUENCE="false" COMMENT="solicitada|pendiente_firma_presencial|firmada_digital|recibida_direccion_academica|recibida_direccion_administrativa|procesada|rechazada|cancelada."/>
+        <FIELD NAME="status"                   TYPE="char" LENGTH="40"  NOTNULL="true" DEFAULT="solicitada" SEQUENCE="false" COMMENT="solicitada (nueva)|en_gestion|retiro_formal|procesada (retirado)|retenida|rechazada|cancelada; legado: pendiente_firma_presencial|firmada_digital|recibida_direccion_academica|recibida_direccion_administrativa."/>
         <FIELD NAME="received_da_at"           TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts firma/sello Direccion Academica."/>
         <FIELD NAME="received_da_by"           TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="userid de quien registro la firma de Direccion Academica."/>
         <FIELD NAME="received_admin_at"        TYPE="int"  LENGTH="10"  NOTNULL="false" DEFAULT="0" SEQUENCE="false" COMMENT="Unix ts firma/sello Direccion Administrativa."/>
@@ -1600,6 +1600,19 @@
         <FIELD NAME="timecreated"              TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified"             TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="usermodified"             TYPE="int"  LENGTH="10"  NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+              <FIELD NAME="channel" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="portal" SEQUENCE="false" COMMENT="portal|presencial|telefono|correo|whatsapp"/>
+        <FIELD NAME="created_by" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="assigned_to" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Gestor de Bienestar que lleva el caso"/>
+        <FIELD NAME="next_followup" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="last_activity_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="payment_instructed_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="formal_requested_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="formal_requested_by" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="student_signed_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="student_signed_by" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="closed_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="closed_by" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="moodle_actions" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON: resultado de cada paso del retiro formal en Moodle"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary"  FIELDS="id"/>
@@ -2497,6 +2510,30 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="userid_uix" UNIQUE="true" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="gmk_wdr_log" COMMENT="Bitacora de gestion de una solicitud de retiro: gestiones, seguimientos, escalamientos y cambios de etapa">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="wdrid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="type" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="nota" SEQUENCE="false" COMMENT="llamada|reunion|mensaje|nota|instruccion_pago|escalamiento|etapa"/>
+        <FIELD NAME="body" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="area" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="Escalamiento: direccion_academica|psicologia|cobros|coordinacion"/>
+        <FIELD NAME="assignee" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="due" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="resolved_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="resolved_by" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="response" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="wdr_time_idx" UNIQUE="false" FIELDS="wdrid, timecreated"/>
+        <INDEX NAME="assignee_open_idx" UNIQUE="false" FIELDS="assignee, resolved_at"/>
       </INDEXES>
     </TABLE>
 

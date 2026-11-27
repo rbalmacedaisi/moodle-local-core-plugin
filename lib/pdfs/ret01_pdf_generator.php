@@ -197,6 +197,12 @@ class ret01_pdf_generator extends \TCPDF {
         // propio espacio dentro de render_section_receipt().
         $this->render_section_reason_payment();
         $this->render_section_declaration();
+        // La firma del estudiante va en la ultima hoja, junto con la constancia
+        // de recepcion (pedido de Secretaria, 2026-11-27): si la firma, la
+        // constancia y el uso interno no caben en la hoja actual, pasan juntos
+        // a la siguiente.
+        $this->ensure_space(165);
+        $this->render_student_signature();
         $this->render_section_receipt();
         $this->render_section_internal();
         $this->render_footer();
@@ -560,13 +566,21 @@ class ret01_pdf_generator extends \TCPDF {
             $this->Ln(1);
             $i++;
         }
-        // Signature block: keep it together AND on the same page as
-        // the declaration. We pre-flight with ensure_space() for the
-        // whole block (8mm line-to-label gap + 4mm label row = 14mm
-        // is enough for a handwritten signature). If the block does
-        // not fit, it stays together and moves to page 2 - we do
-        // NOT want a split.
-        $this->ensure_space(14);
+        $this->Ln(2);
+    }
+
+    // ─────────────────── FIRMA DEL ESTUDIANTE (ultima hoja) ───────────────────
+    private function render_student_signature(): void {
+        // Identifica la hoja de firmas si se separa del resto del formulario.
+        $this->SetFont($this->use_opensans ? 'opensans__b' : 'helvetica', 'B', 9);
+        $this->SetTextColor(...self::C_TEXT);
+        $this->Cell(180, 5, 'Solicitud ' . $this->request_number . '  ·  ' . ($this->row->fullname ?? '')
+            . '  ·  ' . ($this->row->id_number ?? ''), 0, 1, 'L');
+        $this->Ln(1);
+        $this->SetFont($this->use_opensans ? 'opensans' : 'helvetica', '', 8.5);
+        $this->SetTextColor(...self::C_TEXT);
+        $this->MultiCell(180, 4.3, 'Declaro haber leido y aceptado la seccion 4 de este formulario.', 0, 'L');
+        $this->Ln(12);
         $yFirma = $this->GetY();
         $this->SetDrawColor(...self::C_MUTED);
         $this->SetLineWidth(0.3);
@@ -576,16 +590,12 @@ class ret01_pdf_generator extends \TCPDF {
         $this->SetLineWidth(0.2);
         $this->SetFont($this->use_opensans ? 'opensans__i' : 'helvetica', 'I', 8);
         $this->SetTextColor(...self::C_MUTED);
-        // Labels sit 8mm below the line (= signature height, enough
-        // for a 6-8mm tall signature + pen travel). The SetXY uses
-        // absolute coordinates so the labels stay anchored to the
-        // rule even if TCPDF auto-breaks mid-block.
-        $this->SetXY(15, $yFirma + 8);
+        $this->SetXY(15, $yFirma + 2);
         $this->Cell(80, 4, 'Firma del estudiante', 0, 0, 'L');
         $this->SetX(95);
         $this->Cell(100, 4, 'Fecha:   ____  /  ____  /  ________', 0, 0, 'L');
         $this->SetTextColor(...self::C_TEXT);
-        $this->Ln(6);
+        $this->Ln(10);
     }
 
     // ─────────────────── 5. CONSTANCIA DE RECEPCION ───────────────────

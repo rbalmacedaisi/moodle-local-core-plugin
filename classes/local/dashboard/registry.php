@@ -32,6 +32,8 @@ class registry {
         sources\tickets::class,
         sources\letters::class,
         sources\withdrawals::class,
+        sources\withdrawal_escalations::class,
+        sources\withdrawals_formal::class,
         sources\planning::class,
         sources\class_approval::class,
         sources\class_closing::class,

@@ -37,11 +37,18 @@ require_login();
 $context = context_system::instance();
 $PAGE->set_url(new moodle_url('/local/grupomakro_core/pages/withdrawal_requests.php'));
 $PAGE->set_context($context);
-$PAGE->set_title(get_string('wdr_bandeja_title', 'local_grupomakro_core'));
-$PAGE->set_heading(get_string('wdr_bandeja_title', 'local_grupomakro_core'));
+$PAGE->set_title('Retiros');
+$PAGE->set_heading('Retiros');
 $PAGE->set_pagelayout('admin');
 
-require_capability('local/grupomakro_core:view_wdr_requests', $context);
+// Quien recibio un escalamiento de un caso de retiro entra aunque no gestione retiros
+// (solo vera los casos que le escalaron).
+if (!has_capability('local/grupomakro_core:view_wdr_requests', $context)
+        && !$DB->record_exists('gmk_wdr_log', ['type' => 'escalamiento', 'assignee' => $USER->id])) {
+    require_capability('local/grupomakro_core:view_wdr_requests', $context);
+}
+$initialid = optional_param('id', 0, PARAM_INT);
+$catalogs = json_encode(\local_grupomakro_core\external\wdr\flow::catalogs(), JSON_UNESCAPED_UNICODE);
 
 $assetversion = !empty($CFG->themerev) ? (int)$CFG->themerev : 1;
 
@@ -61,7 +68,7 @@ echo <<<EOT
 <div id="gmk-app">
   <v-app class="transparent">
     <v-main>
-      <withdrawal-requests-panel :canmanage="$canmanage"></withdrawal-requests-panel>
+      <withdrawal-requests-panel :initialid="$initialid"></withdrawal-requests-panel>
     </v-main>
   </v-app>
 </div>
@@ -87,16 +94,25 @@ echo <<<EOT
   .gmk-wdr-drawer .v-navigation-drawer__content {
     height: 100%;
   }
+  .gmk-wdr-table tbody tr { cursor: pointer; }
+  .gmk-next { border-left: 4px solid #5c6bc0 !important; }
+  .gmk-kv td { padding: 3px 12px 3px 0; vertical-align: top; }
+  .gmk-kv td:first-child { color: #757575; white-space: nowrap; }
+  .gmk-panel { border: 1px solid rgba(0,0,0,.12); }
+  .gmk-timeline.v-timeline--dense .v-timeline-item__body { max-width: calc(100% - 48px); }
 </style>
 <script>
   var ajaxUrl = $ajaxUrl;
   var sesskey = $sesskey;
   var wwwroot = $wwwroot;
   var GMK_IS_SITEADMIN = $canmanage;
+  var WDR_CATALOGS = $catalogs;
 </script>
 EOT;
 
-$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/withdrawalRequestsPanel.js?v=' . $assetversion));
+$wdrjs = $CFG->dirroot . '/local/grupomakro_core/js/components/withdrawalRequestsPanel.js';
+$PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/components/withdrawalRequestsPanel.js?v=' . $assetversion
+    . '_' . (int)@filemtime($wdrjs)));
 $PAGE->requires->js(new moodle_url('/local/grupomakro_core/js/app.js?v=' . $assetversion));
 
 echo $OUTPUT->footer();
