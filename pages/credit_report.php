@@ -373,7 +373,7 @@ function cr_render_pdf(array $data, array $design, string $scopelabel, string $f
     } else {
         $pdf->SetFont('helvetica', 'B', 9);
     }
-    $pdf->Cell($linew, 5, 'Director Académico', 0, 0, 'C');
+    $pdf->Cell($linew, 5, 'Dirección Académica', 0, 0, 'C');
 
     $pdf->Output($filebase . '.pdf', 'D');
 }
@@ -649,7 +649,7 @@ function cr_render_xlsx(array $data, array $design, string $scopelabel, string $
         ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
         ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF000000'));
     $director = trim((string)get_config('local_grupomakro_core', 'academic_director_name'));
-    $siglines = ($director !== '') ? [$director, 'Director Académico'] : ['Director Académico'];
+    $siglines = ($director !== '') ? [$director, 'Dirección Académica'] : ['Dirección Académica'];
     foreach ($siglines as $k => $line) {
         $sheet->mergeCells("B{$r}:E{$r}");
         $sheet->setCellValue("B{$r}", $line);
