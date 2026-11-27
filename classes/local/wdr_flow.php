@@ -551,9 +551,10 @@ class wdr_flow {
 
     public static function log(int $wdrid, string $type, string $body, int $actorid, array $extra = []): int {
         global $DB;
-        return (int)$DB->insert_record('gmk_wdr_log', (object)([
+        // $extra (area, assignee, due) prevalece sobre los valores por defecto.
+        return (int)$DB->insert_record('gmk_wdr_log', (object)array_merge([
             'wdrid' => $wdrid, 'type' => $type, 'body' => $body, 'area' => '', 'assignee' => 0, 'due' => 0,
             'resolved_at' => 0, 'resolved_by' => 0, 'response' => null, 'userid' => $actorid, 'timecreated' => time(),
-        ] + $extra));
+        ], $extra));
     }
 }
